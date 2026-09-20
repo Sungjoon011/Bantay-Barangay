@@ -137,18 +137,6 @@ Access is enforced through **role-based access control (RBAC)**.
 
 ---
 
-## 🗺️ Roadmap
-
-- [ ] Design the ERD
-- [ ] Create tables and relationships
-- [ ] Add primary keys, foreign keys, and constraints
-- [ ] Insert sample data
-- [ ] Write queries and reports
-- [ ] Add role-based access
-- [ ] Test and finalize the database
-
----
-
 ## 👨‍💻 Team Members
 
 - Lee, Sungjoon
