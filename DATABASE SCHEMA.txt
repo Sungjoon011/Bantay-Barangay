@@ -1,0 +1,2 @@
+DATABASE SCHEMA
+https://dbdiagram.io/d/Bantay-Baranggay-Database-6ab1f6e4bd4073ff51368e6f
