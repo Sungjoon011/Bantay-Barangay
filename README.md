@@ -101,6 +101,7 @@ Bantay-Baranggay Database replaces paper records with one centralized, normalize
 | `payments` | Fees paid for documents and permits |
 | `activity_logs` | Record of staff and official actions |
 
+Lack of Table For Staff, might share in users and residents for the names and household
 ---
 
 ## 🔗 Entity Relationships
