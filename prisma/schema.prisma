@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// ENUMS (Standardized Dropdown Values)
+// ==========================================
+enum SystemRole {
+  Admin
+  Staff
+  Official
+}
+
+enum AccountStatus {
+  Active
+  Inactive
+  Banned
+}
+
+enum StaffRecordStatus {
+  Active
+  Resigned
+}
+
+enum ResidentRecordStatus {
+  Active
+  Moved
+  Deceased
+}
+
+enum Gender {
+  Male
+  Female
+  Other
+}
+
+enum RequestStatus {
+  Pending
+  Processing
+  Ready
+  Claimed
+  Rejected
+}
+
+enum PermitStatus {
+  Pending
+  Approved
+  Rejected
+  Expired
+}
+
+enum PaymentStatus {
+  Unpaid
+  Paid
+  Refunded
+}
+
+enum PaymentMethod {
+  Cash
+  GCash
+  Maya
+}
+
+enum TransactionType {
+  Document
+  BusinessPermit
+}
+
+enum BlotterStatus {
+  Open
+  Settled
+  Escalated
+}
+
+enum ConfidentialityLevel {
+  Standard
+  VAWC
+  Restricted
+}
+
+// ==========================================
+// ZONE 1: PRIVATE BACKEND (Admin/Staff Only)
+// ==========================================
+model PrivateAccount {
+  accountId     Int            @id @default(autoincrement())
+  systemRole    SystemRole
+  email         String         @unique
+  passwordHash  String
+  accountStatus AccountStatus  @default(Active)
+
+  staffProfile  StaffOfficial?
+  auditLogs     SystemAuditLog[]
+}
+
+model StaffOfficial {
+  staffId       Int               @id @default(autoincrement())
+  accountId     Int               @unique
+  firstName     String
+  lastName      String
+  positionTitle String
+  recordStatus  StaffRecordStatus @default(Active)
+
+  account       PrivateAccount    @relation(fields: [accountId], references: [accountId])
+  
+  announcements    Announcement[]
+  processedDocs    DocumentRequest[]
+  approvedPermits  BusinessPermit[]
+  recordedBlotters IncidentBlotter[]
+}
+
+model SystemAuditLog {
+  logId           Int            @id @default(autoincrement())
+  accountId       Int
+  actionPerformed String
+  tableAffected   String
+  timestamp       DateTime       @default(now())
+  ipAddress       String?
+
+  account         PrivateAccount @relation(fields: [accountId], references: [accountId])
+}
+
+// ==========================================
+// ZONE 2: PUBLIC FRONTEND (Residents Only)
+// ==========================================
+model PublicAccount {
+  accountId     Int           @id @default(autoincrement())
+  email         String?       @unique
+  phoneNumber   String?       @unique
+  passwordHash  String
+  accountStatus AccountStatus @default(Active)
+
+  residentProfile Resident?
+}
+
+model Household {
+  householdId     Int        @id @default(autoincrement())
+  headOfFamilyId  Int?       // Nullable to avoid circular relation creation issues
+  addressDetails  String
+  purokZone       String
+
+  residents       Resident[]
+}
+
+model Resident {
+  residentId      Int                  @id @default(autoincrement())
+  accountId       Int?                 @unique // Nullable for residents with no app account
+  householdId     Int
+  firstName       String
+  lastName        String
+  birthDate       DateTime             @db.Date
+  gender          Gender
+  civilStatus     String
+  address         String
+  purokZone       String
+  qrCodeString    String?              @unique
+  recordStatus    ResidentRecordStatus @default(Active)
+
+  account         PublicAccount?       @relation(fields: [accountId], references: [accountId])
+  household       Household            @relation(fields: [householdId], references: [householdId])
+
+  appointments    Appointment[]
+  filedBlotters   IncidentBlotter[]
+  documentRequests DocumentRequest[]
+  businessPermits BusinessPermit[]
+}
+
+// ==========================================
+// ZONE 3: SHARED TRANSACTIONS
+// ==========================================
+model Announcement {
+  announcementId   Int           @id @default(autoincrement())
+  postedByStaffId  Int
+  title            String
+  messageBody      String
+  targetAudience   String        @default("All")
+  datePosted       DateTime      @default(now())
+
+  postedBy         StaffOfficial @relation(fields: [postedByStaffId], references: [staffId])
+}
+
+model Appointment {
+  appointmentId Int      @id @default(autoincrement())
+  residentId    Int
+  purpose       String
+  scheduledDate DateTime @db.Date
+  scheduledTime DateTime @db.Time
+  status        String   @default("Upcoming")
+
+  resident      Resident @relation(fields: [residentId], references: [residentId])
+}
+
+model IncidentBlotter {
+  caseId               Int                  @id @default(autoincrement())
+  complainantId        Int
+  recordedByStaffId    Int
+  respondentName       String
+  incidentType         String
+  description          String
+  confidentialityLevel ConfidentialityLevel @default(Standard)
+  status               BlotterStatus        @default(Open)
+  dateOfIncident       DateTime
+
+  complainant          Resident             @relation(fields: [complainantId], references: [residentId])
+  recordedBy           StaffOfficial        @relation(fields: [recordedByStaffId], references: [staffId])
+}
+
+model DocumentRequest {
+  requestId           Int           @id @default(autoincrement())
+  residentId          Int
+  processedByStaffId  Int?
+  documentType        String
+  purpose             String
+  status              RequestStatus @default(Pending)
+  requestDate         DateTime      @default(now())
+
+  resident            Resident       @relation(fields: [residentId], references: [residentId])
+  processedBy         StaffOfficial? @relation(fields: [processedByStaffId], references: [staffId])
+  payment             Payment?
+}
+
+model BusinessPermit {
+  permitId            Int           @id @default(autoincrement())
+  residentId          Int
+  approvedByStaffId   Int?
+  businessName        String
+  businessType        String
+  status              PermitStatus  @default(Pending)
+  applicationDate     DateTime      @db.Date
+
+  resident            Resident       @relation(fields: [residentId], references: [residentId])
+  approvedBy          StaffOfficial? @relation(fields: [approvedByStaffId], references: [staffId])
+  payment             Payment?
+}
+
+model Payment {
+  paymentId       Int             @id @default(autoincrement())
+  transactionType TransactionType
+  requestId       Int?            @unique
+  permitId        Int?            @unique
+  amount          Decimal         @db.Decimal(10, 2)
+  orNumber        String?         @unique
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus   @default(Unpaid)
+  datePaid        DateTime?
+
+  documentRequest DocumentRequest? @relation(fields: [requestId], references: [requestId])
+  businessPermit  BusinessPermit?  @relation(fields: [permitId], references: [permitId])
+}
