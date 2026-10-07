@@ -8,9 +8,6 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ==========================================
-// ENUMS (Standardized Dropdown Values)
-// ==========================================
 enum SystemRole {
   Admin
   Staff
@@ -84,18 +81,15 @@ enum ConfidentialityLevel {
   Restricted
 }
 
-// ==========================================
-// ZONE 1: PRIVATE BACKEND (Admin/Staff Only)
-// ==========================================
 model PrivateAccount {
-  accountId     Int            @id @default(autoincrement())
+  accountId     Int           @id @default(autoincrement())
   systemRole    SystemRole
-  email         String         @unique
+  email         String        @unique
   passwordHash  String
-  accountStatus AccountStatus  @default(Active)
+  accountStatus AccountStatus @default(Active)
 
-  staffProfile  StaffOfficial?
-  auditLogs     SystemAuditLog[]
+  staffProfile StaffOfficial?
+  auditLogs    SystemAuditLog[]
 }
 
 model StaffOfficial {
@@ -106,8 +100,8 @@ model StaffOfficial {
   positionTitle String
   recordStatus  StaffRecordStatus @default(Active)
 
-  account       PrivateAccount    @relation(fields: [accountId], references: [accountId])
-  
+  account PrivateAccount @relation(fields: [accountId], references: [accountId])
+
   announcements    Announcement[]
   processedDocs    DocumentRequest[]
   approvedPermits  BusinessPermit[]
@@ -115,19 +109,16 @@ model StaffOfficial {
 }
 
 model SystemAuditLog {
-  logId           Int            @id @default(autoincrement())
+  logId           Int      @id @default(autoincrement())
   accountId       Int
   actionPerformed String
   tableAffected   String
-  timestamp       DateTime       @default(now())
+  timestamp       DateTime @default(now())
   ipAddress       String?
 
-  account         PrivateAccount @relation(fields: [accountId], references: [accountId])
+  account PrivateAccount @relation(fields: [accountId], references: [accountId])
 }
 
-// ==========================================
-// ZONE 2: PUBLIC FRONTEND (Residents Only)
-// ==========================================
 model PublicAccount {
   accountId     Int           @id @default(autoincrement())
   email         String?       @unique
@@ -139,49 +130,46 @@ model PublicAccount {
 }
 
 model Household {
-  householdId     Int        @id @default(autoincrement())
-  headOfFamilyId  Int?       // Nullable to avoid circular relation creation issues
-  addressDetails  String
-  purokZone       String
+  householdId    Int    @id @default(autoincrement())
+  addressDetails String
+  purokZone      String
 
-  residents       Resident[]
+  residents Resident[]
 }
 
 model Resident {
-  residentId      Int                  @id @default(autoincrement())
-  accountId       Int?                 @unique // Nullable for residents with no app account
-  householdId     Int
-  firstName       String
-  lastName        String
-  birthDate       DateTime             @db.Date
-  gender          Gender
-  civilStatus     String
-  address         String
-  purokZone       String
-  qrCodeString    String?              @unique
-  recordStatus    ResidentRecordStatus @default(Active)
+  residentId    Int                  @id @default(autoincrement())
+  accountId     Int?                 @unique
+  householdId   Int
+  firstName     String
+  lastName      String
+  birthDate     DateTime             @db.Date
+  gender        Gender?
+  civilStatus   String?
+  address       String?
+  purokZone     String?
+  contactNumber String?
+  qrCodeString  String?              @unique
+  recordStatus  ResidentRecordStatus @default(Active)
 
-  account         PublicAccount?       @relation(fields: [accountId], references: [accountId])
-  household       Household            @relation(fields: [householdId], references: [householdId])
+  account   PublicAccount? @relation(fields: [accountId], references: [accountId])
+  household Household      @relation(fields: [householdId], references: [householdId])
 
-  appointments    Appointment[]
-  filedBlotters   IncidentBlotter[]
+  appointments     Appointment[]
+  filedBlotters    IncidentBlotter[]
   documentRequests DocumentRequest[]
-  businessPermits BusinessPermit[]
+  businessPermits  BusinessPermit[]
 }
 
-// ==========================================
-// ZONE 3: SHARED TRANSACTIONS
-// ==========================================
 model Announcement {
-  announcementId   Int           @id @default(autoincrement())
-  postedByStaffId  Int
-  title            String
-  messageBody      String
-  targetAudience   String        @default("All")
-  datePosted       DateTime      @default(now())
+  announcementId  Int      @id @default(autoincrement())
+  postedByStaffId Int
+  title           String
+  messageBody     String
+  targetAudience  String   @default("All")
+  datePosted      DateTime @default(now())
 
-  postedBy         StaffOfficial @relation(fields: [postedByStaffId], references: [staffId])
+  postedBy StaffOfficial @relation(fields: [postedByStaffId], references: [staffId])
 }
 
 model Appointment {
@@ -192,7 +180,7 @@ model Appointment {
   scheduledTime DateTime @db.Time
   status        String   @default("Upcoming")
 
-  resident      Resident @relation(fields: [residentId], references: [residentId])
+  resident Resident @relation(fields: [residentId], references: [residentId])
 }
 
 model IncidentBlotter {
@@ -206,36 +194,36 @@ model IncidentBlotter {
   status               BlotterStatus        @default(Open)
   dateOfIncident       DateTime
 
-  complainant          Resident             @relation(fields: [complainantId], references: [residentId])
-  recordedBy           StaffOfficial        @relation(fields: [recordedByStaffId], references: [staffId])
+  complainant Resident      @relation(fields: [complainantId], references: [residentId])
+  recordedBy  StaffOfficial @relation(fields: [recordedByStaffId], references: [staffId])
 }
 
 model DocumentRequest {
-  requestId           Int           @id @default(autoincrement())
-  residentId          Int
-  processedByStaffId  Int?
-  documentType        String
-  purpose             String
-  status              RequestStatus @default(Pending)
-  requestDate         DateTime      @default(now())
+  requestId          Int           @id @default(autoincrement())
+  residentId         Int
+  processedByStaffId Int?
+  documentType       String
+  purpose            String
+  status             RequestStatus @default(Pending)
+  requestDate        DateTime      @default(now())
 
-  resident            Resident       @relation(fields: [residentId], references: [residentId])
-  processedBy         StaffOfficial? @relation(fields: [processedByStaffId], references: [staffId])
-  payment             Payment?
+  resident    Resident       @relation(fields: [residentId], references: [residentId])
+  processedBy StaffOfficial? @relation(fields: [processedByStaffId], references: [staffId])
+  payment     Payment?
 }
 
 model BusinessPermit {
-  permitId            Int           @id @default(autoincrement())
-  residentId          Int
-  approvedByStaffId   Int?
-  businessName        String
-  businessType        String
-  status              PermitStatus  @default(Pending)
-  applicationDate     DateTime      @db.Date
+  permitId          Int          @id @default(autoincrement())
+  residentId        Int
+  approvedByStaffId Int?
+  businessName      String
+  businessType      String
+  status            PermitStatus @default(Pending)
+  applicationDate   DateTime     @db.Date
 
-  resident            Resident       @relation(fields: [residentId], references: [residentId])
-  approvedBy          StaffOfficial? @relation(fields: [approvedByStaffId], references: [staffId])
-  payment             Payment?
+  resident   Resident       @relation(fields: [residentId], references: [residentId])
+  approvedBy StaffOfficial? @relation(fields: [approvedByStaffId], references: [staffId])
+  payment    Payment?
 }
 
 model Payment {
