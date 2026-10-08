@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
@@ -225,4 +226,95 @@ app.get('/api/blotters', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Barangay Backend server running on port ${PORT}`);
+});
+// GET: Fetch all Staff Accounts
+app.get('/api/staff', async (req, res) => {
+  try {
+    const staff = await prisma.privateAccount.findMany({
+      include: {
+        staffProfile: true
+      }
+    });
+    res.status(200).json(staff);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// ==========================================
+// STATUS UPDATE ROUTES
+// ==========================================
+
+// PATCH: Update Document Request Status
+app.patch('/api/documents/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // e.g., "Approved", "Released", "Rejected"
+
+    const updatedDocument = await prisma.documentRequest.update({
+      where: { requestId: parseInt(id) }, // Make sure 'requestId' matches your Prisma schema
+      data: { requestStatus: status }
+    });
+
+    res.status(200).json(updatedDocument);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// PATCH: Update Incident Blotter Status
+app.patch('/api/blotters/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // e.g., "Resolved", "Closed"
+
+    const updatedBlotter = await prisma.incidentBlotter.update({
+      where: { caseId: parseInt(id) }, 
+      data: { status: status }
+    });
+
+    res.status(200).json(updatedBlotter);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+// ==========================================
+// AUTHENTICATION ROUTES
+// ==========================================
+
+// POST: Staff Login
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // 1. Check if the user exists in the database
+    const user = await prisma.privateAccount.findUnique({
+      where: { email: email }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+    
+    // 2. Verify the password 
+    // (Note: We are using raw passwords for this test. Later, we will encrypt them!)
+    if (password !== user.passwordHash) {
+      return res.status(401).json({ error: "Incorrect password" });
+    }
+
+    // 3. Generate the JWT (The "Digital ID Badge")
+    const token = jwt.sign(
+      { accountId: user.accountId, role: user.systemRole }, // Data hidden inside the token
+      process.env.JWT_SECRET,                               // Your secret key from .env
+      { expiresIn: '8h' }                                   // Token expires in 8 hours
+    );
+
+    // 4. Send the token to the user
+    res.status(200).json({ 
+      message: "Login successful", 
+      token: token 
+    });
+
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });

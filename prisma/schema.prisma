@@ -71,8 +71,8 @@ enum TransactionType {
 
 enum BlotterStatus {
   Open
-  Settled
-  Escalated
+  Ongoing
+  Resolved
 }
 
 enum ConfidentialityLevel {
