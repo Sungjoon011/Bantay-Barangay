@@ -110,13 +110,13 @@ model StaffOfficial {
 
 model SystemAuditLog {
   logId           Int      @id @default(autoincrement())
-  accountId       Int
+  accountId       Int?
   actionPerformed String
   tableAffected   String
   timestamp       DateTime @default(now())
   ipAddress       String?
 
-  account PrivateAccount @relation(fields: [accountId], references: [accountId])
+  account PrivateAccount? @relation(fields: [accountId], references: [accountId])
 }
 
 model PublicAccount {
