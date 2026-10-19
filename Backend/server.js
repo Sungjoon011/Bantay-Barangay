@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs'); 
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
@@ -52,6 +53,34 @@ app.get('/api/households', async (req, res) => {
 // ==========================================
 // 2. RESIDENT ROUTES
 // ==========================================
+ // POST: Create a Resident
+   app.post('/api/residents', async (req, res) => {
+     try {
+       const { householdId, firstName, lastName, birthDate, gender, civilStatus, address, purokZone, contactNumber } = req.body;
+
+       if (!householdId || !firstName || !lastName || !birthDate) {
+         return res.status(400).json({ error: 'householdId, firstName, lastName, and birthDate are required.' });
+       }
+
+       const newResident = await prisma.resident.create({
+         data: {
+           householdId: parseInt(householdId),
+           firstName,
+           lastName,
+           birthDate: new Date(birthDate),
+           gender,
+           civilStatus,
+           address,
+           purokZone,
+           contactNumber
+         }
+       });
+
+       res.status(201).json(newResident);
+     } catch (error) {
+       res.status(400).json({ error: error.message });
+     }
+   });
 
 // PUT: Update a Resident
 app.put('/api/residents/:id', async (req, res) => {
@@ -144,7 +173,7 @@ app.post('/api/staff', async (req, res) => {
     const newAccount = await prisma.privateAccount.create({
       data: {
         email,
-        passwordHash: password,
+        passwordHash: await bcrypt.hash(password, 10),
         systemRole,
         staffProfile: {
           create: {
@@ -252,7 +281,7 @@ app.patch('/api/documents/:id/status', async (req, res) => {
 
     const updatedDocument = await prisma.documentRequest.update({
       where: { requestId: parseInt(id) }, // Make sure 'requestId' matches your Prisma schema
-      data: { requestStatus: status }
+      data: { status: status }
     });
 
     res.status(200).json(updatedDocument);
@@ -297,7 +326,8 @@ app.post('/api/login', async (req, res) => {
     
     // 2. Verify the password 
     // (Note: We are using raw passwords for this test. Later, we will encrypt them!)
-    if (password !== user.passwordHash) {
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+if (!isMatch) { 
       return res.status(401).json({ error: "Incorrect password" });
     }
 
