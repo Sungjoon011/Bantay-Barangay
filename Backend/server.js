@@ -1,350 +1,349 @@
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs'); 
 const express = require('express');
-const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
+const cors = require('cors');
+const path = require('path');
 
-const prisma = new PrismaClient();
 const app = express();
+const prisma = new PrismaClient();
 
-app.use(express.json());
+// ==========================================
+// MIDDLEWARE CONFIGURATION
+// ==========================================
 app.use(cors());
+app.use(express.json());
+
+// Serve static frontend UI files from the 'public' directory
+app.use(express.static(path.join(__dirname, '../public')));
 
 // ==========================================
-// 1. HOUSEHOLD ROUTES
+// 1. SYSTEM HEALTH & AUDIT ENDPOINTS
 // ==========================================
 
-// POST: Create a Household
-app.post('/api/households', async (req, res) => {
+// System Health Check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ONLINE',
+    system: 'Bantay-Barangay API Engine v1.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Fetch Audit Logs (Triggers Database Output Verification)
+app.get('/api/audit-logs', async (req, res) => {
   try {
-    const { addressDetails, purokZone } = req.body;
-
-    if (!addressDetails || !purokZone) {
-      return res.status(400).json({ error: 'addressDetails and purokZone are required.' });
-    }
-
-    const newHousehold = await prisma.household.create({
-      data: {
-        addressDetails,
-        purokZone
-      }
+    const logs = await prisma.auditLog.findMany({
+      take: 100,
+      orderBy: { changedAt: 'desc' }
     });
-
-    res.status(201).json(newHousehold);
+    res.json({ success: true, count: logs.length, data: logs });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// GET: Fetch all Households (includes nested Residents)
-app.get('/api/households', async (req, res) => {
+// ==========================================
+// 2. INCIDENT MANAGEMENT ROUTES
+// ==========================================
+
+// GET: List all incidents (with status query filter)
+app.get('/api/incidents', async (req, res) => {
   try {
-    const households = await prisma.household.findMany({
+    const { status } = req.query;
+    const incidents = await prisma.incident.findMany({
+      where: status ? { status: String(status) } : {},
       include: {
-        residents: true
-      }
-    });
-    res.status(200).json(households);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// 2. RESIDENT ROUTES
-// ==========================================
- // POST: Create a Resident
-   app.post('/api/residents', async (req, res) => {
-     try {
-       const { householdId, firstName, lastName, birthDate, gender, civilStatus, address, purokZone, contactNumber } = req.body;
-
-       if (!householdId || !firstName || !lastName || !birthDate) {
-         return res.status(400).json({ error: 'householdId, firstName, lastName, and birthDate are required.' });
-       }
-
-       const newResident = await prisma.resident.create({
-         data: {
-           householdId: parseInt(householdId),
-           firstName,
-           lastName,
-           birthDate: new Date(birthDate),
-           gender,
-           civilStatus,
-           address,
-           purokZone,
-           contactNumber
-         }
-       });
-
-       res.status(201).json(newResident);
-     } catch (error) {
-       res.status(400).json({ error: error.message });
-     }
-   });
-
-// PUT: Update a Resident
-app.put('/api/residents/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body; 
-
-    const updatedResident = await prisma.resident.update({
-      where: { residentId: parseInt(id) },
-      data: updateData,
-    });
-    res.status(200).json(updatedResident);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// DELETE: Soft Delete/Archive a Resident
-app.delete('/api/residents/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body; 
-
-    const archivedResident = await prisma.resident.update({
-      where: { residentId: parseInt(id) },
-      data: { recordStatus: status || 'Moved' },
-    });
-    res.status(200).json({ 
-      message: `Resident marked as ${archivedResident.recordStatus}`, 
-      resident: archivedResident 
-    });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// 3. DOCUMENT REQUEST ROUTES
-// ==========================================
-
-// POST: Create a Document Request
-app.post('/api/documents', async (req, res) => {
-  try {
-    const { residentId, documentType, purpose } = req.body;
-
-    if (!residentId || !documentType || !purpose) {
-      return res.status(400).json({ error: 'residentId, documentType, and purpose are required.' });
-    }
-
-    const newRequest = await prisma.documentRequest.create({
-      data: {
-        residentId: parseInt(residentId),
-        documentType,
-        purpose
-      }
-    });
-
-    res.status(201).json(newRequest);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// GET: Fetch all Document Requests
-app.get('/api/documents', async (req, res) => {
-  try {
-    const documents = await prisma.documentRequest.findMany({
-      include: {
-        resident: true
-      },
-      orderBy: {
-        requestDate: 'desc'
-      }
-    });
-    res.status(200).json(documents);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// 4. STAFF / ADMIN ROUTES
-// ==========================================
-
-// POST: Create Staff Account (PrivateAccount + StaffOfficial nested)
-app.post('/api/staff', async (req, res) => {
-  try {
-    const { email, password, systemRole, firstName, lastName, positionTitle } = req.body;
-
-    const newAccount = await prisma.privateAccount.create({
-      data: {
-        email,
-        passwordHash: await bcrypt.hash(password, 10),
-        systemRole,
-        staffProfile: {
-          create: {
-            firstName,
-            lastName,
-            positionTitle
-          }
-        }
-      },
-      include: {
-        staffProfile: true
-      }
-    });
-
-    res.status(201).json(newAccount);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// ==========================================
-// 5. INCIDENT BLOTTER ROUTES
-// ==========================================
-
-// POST: Create an Incident Blotter (with proper relation connects)
-app.post('/api/blotters', async (req, res) => {
-  try {
-    const { 
-      dateOfIncident, 
-      incidentType, 
-      complainantResidentId, 
-      respondentName, 
-      description, // Removed incidentDetails, using description
-      recordedByStaffId 
-    } = req.body;
-
-    const newBlotter = await prisma.incidentBlotter.create({
-      data: {
-        dateOfIncident: new Date(dateOfIncident),
-        incidentType,
-        respondentName,
-        description, // Passed directly here
-        complainant: {
-          connect: { residentId: parseInt(complainantResidentId) }
+        reporter: {
+          select: { id: true, fullName: true, email: true, contactNo: true }
         },
-        recordedBy: {
-          connect: { staffId: parseInt(recordedByStaffId) }
+        responders: {
+          include: { resident: true }
         }
-      }
+      },
+      orderBy: { reportedAt: 'desc' }
     });
-
-    res.status(201).json(newBlotter);
+    res.json({ success: true, count: incidents.length, data: incidents });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// GET: Fetch all Incident Blotters
+// GET: Single Incident Details
+app.get('/api/incidents/:id', async (req, res) => {
+  try {
+    const incidentId = parseInt(req.params.id);
+    const incident = await prisma.incident.findUnique({
+      where: { id: incidentId },
+      include: {
+        reporter: true,
+        responders: { include: { resident: true } }
+      }
+    });
+
+    if (!incident) {
+      return res.status(404).json({ success: false, error: 'Incident record not found.' });
+    }
+
+    res.json({ success: true, data: incident });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST: Create a new Incident Report
+app.post('/api/incidents', async (req, res) => {
+  try {
+    const { reporterId, title, description, location, category } = req.body;
+
+    if (!reporterId || !title || !description || !location) {
+      return res.status(400).json({
+        success: false,
+        error: 'reporterId, title, description, and location are required.'
+      });
+    }
+
+    const incident = await prisma.incident.create({
+      data: {
+        reporterId: parseInt(reporterId),
+        title,
+        description,
+        location,
+        category: category || 'GENERAL',
+        status: 'REPORTED'
+      }
+    });
+
+    res.status(201).json({ success: true, data: incident });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// PATCH: Update Incident Status (Executes Stored Procedure)
+app.patch('/api/incidents/:id/status', async (req, res) => {
+  try {
+    const incidentId = parseInt(req.params.id);
+    const { status, updatedBy } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'Status parameter is required.' });
+    }
+
+    // Database Automation Call: Stored Procedure
+    await prisma.$executeRaw`CALL update_incident_status(${incidentId}, ${status}, ${updatedBy ? parseInt(updatedBy) : null})`;
+
+    const updatedIncident = await prisma.incident.findUnique({
+      where: { id: incidentId }
+    });
+
+    res.json({ success: true, data: updatedIncident });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST: Assign Responders to Incident (M:N Junction Table)
+app.post('/api/incidents/:id/responders', async (req, res) => {
+  try {
+    const incidentId = parseInt(req.params.id);
+    const { residentId, roleAssigned } = req.body;
+
+    if (!residentId) {
+      return res.status(400).json({ success: false, error: 'residentId is required.' });
+    }
+
+    const responder = await prisma.incidentResponder.create({
+      data: {
+        incidentId,
+        residentId: parseInt(residentId),
+        roleAssigned: roleAssigned || 'OFFICER'
+      }
+    });
+
+    res.status(201).json({ success: true, data: responder });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// 3. BLOTTER & LEGAL CASE ROUTES
+// ==========================================
+
+// GET: List all Blotter Records
 app.get('/api/blotters', async (req, res) => {
   try {
-    const blotters = await prisma.incidentBlotter.findMany({
+    const blotters = await prisma.blotterRecord.findMany({
       include: {
-        complainant: true,
-        recordedBy: true
+        parties: { include: { resident: true } }
       },
-      orderBy: {
-        dateOfIncident: 'desc'
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ success: true, count: blotters.length, data: blotters });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST: Create a Blotter Record
+app.post('/api/blotters', async (req, res) => {
+  try {
+    const { incidentId, caseTitle, caseType, summary } = req.body;
+
+    if (!caseTitle || !caseType) {
+      return res.status(400).json({ success: false, error: 'caseTitle and caseType are required.' });
+    }
+
+    const blotter = await prisma.blotterRecord.create({
+      data: {
+        incidentId: incidentId ? parseInt(incidentId) : null,
+        caseTitle,
+        caseType,
+        summary,
+        caseStatus: 'PENDING'
       }
     });
-    res.status(200).json(blotters);
+
+    res.status(201).json({ success: true, data: blotter });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ success: false, error: error.message });
   }
 });
 
-// ==========================================
-// START SERVER
-// ==========================================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Barangay Backend server running on port ${PORT}`);
-});
-// GET: Fetch all Staff Accounts
-app.get('/api/staff', async (req, res) => {
+// POST: Add Party to Blotter Case (Complainant/Respondent/Witness)
+app.post('/api/blotters/:id/parties', async (req, res) => {
   try {
-    const staff = await prisma.privateAccount.findMany({
-      include: {
-        staffProfile: true
+    const caseId = parseInt(req.params.id);
+    const { residentId, partyRole, statement } = req.body;
+
+    if (!residentId || !partyRole) {
+      return res.status(400).json({ success: false, error: 'residentId and partyRole are required.' });
+    }
+
+    const party = await prisma.blotterParty.create({
+      data: {
+        caseId,
+        residentId: parseInt(residentId),
+        partyRole,
+        statement
       }
     });
-    res.status(200).json(staff);
+
+    res.status(201).json({ success: true, data: party });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ success: false, error: error.message });
   }
 });
-// ==========================================
-// STATUS UPDATE ROUTES
-// ==========================================
 
-// PATCH: Update Document Request Status
-app.patch('/api/documents/:id/status', async (req, res) => {
+// GET: List Parties in a Blotter Case
+app.get('/api/blotters/:id/parties', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body; // e.g., "Approved", "Released", "Rejected"
-
-    const updatedDocument = await prisma.documentRequest.update({
-      where: { requestId: parseInt(id) }, // Make sure 'requestId' matches your Prisma schema
-      data: { status: status }
+    const caseId = parseInt(req.params.id);
+    const parties = await prisma.blotterParty.findMany({
+      where: { caseId },
+      include: { resident: true }
     });
-
-    res.status(200).json(updatedDocument);
+    res.json({ success: true, count: parties.length, data: parties });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// PATCH: Update Incident Blotter Status
+// PATCH: Update Blotter Case Status
 app.patch('/api/blotters/:id/status', async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body; // e.g., "Resolved", "Closed"
+    const caseId = parseInt(req.params.id);
+    const { caseStatus } = req.body;
 
-    const updatedBlotter = await prisma.incidentBlotter.update({
-      where: { caseId: parseInt(id) }, 
-      data: { status: status }
+    const updatedBlotter = await prisma.blotterRecord.update({
+      where: { id: caseId },
+      data: { caseStatus }
     });
 
-    res.status(200).json(updatedBlotter);
+    res.json({ success: true, data: updatedBlotter });
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
+
 // ==========================================
-// AUTHENTICATION ROUTES
+// 4. RESIDENTS & RBAC USER MANAGEMENT
 // ==========================================
 
-// POST: Staff Login
-app.post('/api/login', async (req, res) => {
+// GET: Fetch all Residents
+app.get('/api/residents', async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    // 1. Check if the user exists in the database
-    const user = await prisma.privateAccount.findUnique({
-      where: { email: email }
+    const residents = await prisma.resident.findMany({
+      include: {
+        userRoles: { include: { role: true } }
+      },
+      orderBy: { fullName: 'asc' }
     });
-
-    if (!user) {
-      return res.status(404).json({ error: "Account not found" });
-    }
-    
-    // 2. Verify the password 
-    // (Note: We are using raw passwords for this test. Later, we will encrypt them!)
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-if (!isMatch) { 
-      return res.status(401).json({ error: "Incorrect password" });
-    }
-
-    // 3. Generate the JWT (The "Digital ID Badge")
-    const token = jwt.sign(
-      { accountId: user.accountId, role: user.systemRole }, // Data hidden inside the token
-      process.env.JWT_SECRET,                               // Your secret key from .env
-      { expiresIn: '8h' }                                   // Token expires in 8 hours
-    );
-
-    // 4. Send the token to the user
-    res.status(200).json({ 
-      message: "Login successful", 
-      token: token 
-    });
-
+    res.json({ success: true, count: residents.length, data: residents });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
+});
+
+// POST: Register New Resident
+app.post('/api/residents', async (req, res) => {
+  try {
+    const { fullName, email, contactNo, address, isVoter } = req.body;
+
+    if (!fullName || !email) {
+      return res.status(400).json({ success: false, error: 'fullName and email are required.' });
+    }
+
+    const resident = await prisma.resident.create({
+      data: {
+        fullName,
+        email,
+        contactNo,
+        address,
+        isVoter: isVoter || false
+      }
+    });
+
+    res.status(201).json({ success: true, data: resident });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// POST: Assign RBAC Role to User (M:N Junction Table)
+app.post('/api/residents/:id/roles', async (req, res) => {
+  try {
+    const residentId = parseInt(req.params.id);
+    const { roleId } = req.body;
+
+    if (!roleId) {
+      return res.status(400).json({ success: false, error: 'roleId is required.' });
+    }
+
+    const userRole = await prisma.userRole.create({
+      data: {
+        residentId,
+        roleId: parseInt(roleId)
+      }
+    });
+
+    res.status(201).json({ success: true, data: userRole });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// 5. WILDCARD CLIENT ROUTE & SERVER LISTEN
+// ==========================================
+
+// Wildcard route to serve index.html for web client navigation
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// Server Initialization (Single Port Declaration)
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Bantay-Barangay API & Full-Stack UI running on http://localhost:${PORT}`);
 });
