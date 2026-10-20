@@ -106,17 +106,19 @@ model StaffOfficial {
   processedDocs    DocumentRequest[]
   approvedPermits  BusinessPermit[]
   recordedBlotters IncidentBlotter[]
+  createdPrograms    BarangayProgram[]
+  recordedAttendance ResidentProgram[]
 }
 
 model SystemAuditLog {
   logId           Int      @id @default(autoincrement())
-  accountId       Int
+  accountId       Int?
   actionPerformed String
   tableAffected   String
   timestamp       DateTime @default(now())
   ipAddress       String?
 
-  account PrivateAccount @relation(fields: [accountId], references: [accountId])
+  account PrivateAccount? @relation(fields: [accountId], references: [accountId])
 }
 
 model PublicAccount {
@@ -159,6 +161,8 @@ model Resident {
   filedBlotters    IncidentBlotter[]
   documentRequests DocumentRequest[]
   businessPermits  BusinessPermit[]
+  blotterRoles BlotterParty[]
+  programs     ResidentProgram[]
 }
 
 model Announcement {
@@ -196,6 +200,7 @@ model IncidentBlotter {
 
   complainant Resident      @relation(fields: [complainantId], references: [residentId])
   recordedBy  StaffOfficial @relation(fields: [recordedByStaffId], references: [staffId])
+   parties BlotterParty[]
 }
 
 model DocumentRequest {
@@ -239,4 +244,59 @@ model Payment {
 
   documentRequest DocumentRequest? @relation(fields: [requestId], references: [requestId])
   businessPermit  BusinessPermit?  @relation(fields: [permitId], references: [permitId])
+}
+enum PartyRole {
+  Complainant
+  Respondent
+  Witness
+}
+
+enum AttendanceStatus {
+  Registered
+  Attended
+  NoShow
+  Cancelled
+}
+
+model BlotterParty {
+  caseId        Int
+  residentId    Int
+  partyRole     PartyRole
+  statement     String?
+  statementDate DateTime  @default(now())
+
+  blotter  IncidentBlotter @relation(fields: [caseId], references: [caseId], onDelete: Cascade)
+  resident Resident        @relation(fields: [residentId], references: [residentId], onDelete: Restrict)
+
+  @@id([caseId, residentId, partyRole])
+  @@index([residentId])
+}
+
+model BarangayProgram {
+  programId        Int      @id @default(autoincrement())
+  createdByStaffId Int
+  title            String
+  description      String?
+  venue            String
+  programDate      DateTime
+
+  createdBy    StaffOfficial     @relation(fields: [createdByStaffId], references: [staffId], onDelete: Restrict)
+  participants ResidentProgram[]
+
+  @@index([programDate])
+}
+
+model ResidentProgram {
+  programId         Int
+  residentId        Int
+  recordedByStaffId Int?
+  registeredAt      DateTime         @default(now())
+  attendanceStatus  AttendanceStatus @default(Registered)
+
+  program    BarangayProgram @relation(fields: [programId], references: [programId], onDelete: Cascade)
+  resident   Resident        @relation(fields: [residentId], references: [residentId], onDelete: Restrict)
+  recordedBy StaffOfficial?  @relation(fields: [recordedByStaffId], references: [staffId], onDelete: SetNull)
+
+  @@id([programId, residentId])
+  @@index([residentId])
 }

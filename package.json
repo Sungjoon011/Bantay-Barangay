@@ -1,32 +1,25 @@
 {
-  "name": "im-final",
+  "name": "bantay-barangay-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Bantay-Barangay Core API and Database Engineering Engine",
+  "main": "Backend/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node backend/server.js",
-    "db:push": "npx prisma db push",
-    "db:generate": "npx prisma generate"
-  },
-  "keywords": [],
-  "type": "commonjs",
-  "allowScripts": {
-    "esbuild@0.28.2": true,
-    "workerd@1.20260704.1": true,
-    "msgpackr-extract@3.0.4": true,
-    "prisma@5.22.0": true,
-    "@prisma/client@5.22.0": true,
-    "@prisma/engines@5.22.0": true
-  },
-  "devDependencies": {
-    "prisma": "^5.22.0"
+    "start": "node Backend/server.js",
+    "dev": "nodemon Backend/server.js",
+    "db:migrate": "npx prisma migrate dev",
+    "db:studio": "npx prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
-    "cors": "^2.8.6",
-    "dotenv": "^18.0.6",
-    "express": "^5.2.1",
+    "@prisma/client": "^5.10.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "nodemon": "^3.1.0",
+    "prisma": "^5.10.0"
   }
 }
