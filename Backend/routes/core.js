@@ -6,16 +6,26 @@ const { pick, int, handle, cleanName, findDuplicateResident, duplicateMessage } 
 module.exports = function registerCoreRoutes(app, prisma) {
   // ---------------- HOUSEHOLDS ----------------
   app.post('/api/households', handle(async (req, res) => {
-    const { addressDetails, purokZone } = req.body;
+    const addressDetails = cleanName(req.body.addressDetails);
+    const purokZone = cleanName(req.body.purokZone);
     if (!addressDetails || !purokZone) {
       return res.status(400).json({ error: 'addressDetails and purokZone are required.' });
     }
+    // the same address in the same purok is the same household
+    const dup = await prisma.household.findFirst({
+      where: { addressDetails: { equals: addressDetails, mode: 'insensitive' }, purokZone: { equals: purokZone, mode: 'insensitive' } },
+    });
+    if (dup) return res.status(409).json({ error: `This household is already registered (#${dup.householdId}). Pick it in the Household Address list.`, existingHouseholdId: dup.householdId });
     const household = await prisma.household.create({ data: { addressDetails, purokZone } });
     res.status(201).json(household);
   }));
 
+  // newest-last, always in the same order, with a resident count (not every resident row)
   app.get('/api/households', handle(async (req, res) => {
-    const households = await prisma.household.findMany({ include: { residents: true } });
+    const households = await prisma.household.findMany({
+      include: { _count: { select: { residents: true } } },
+      orderBy: [{ purokZone: 'asc' }, { addressDetails: 'asc' }],
+    });
     res.status(200).json(households);
   }));
 

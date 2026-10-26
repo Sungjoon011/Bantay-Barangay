@@ -21,14 +21,23 @@ function checkPickupSlot(date, time) {
 module.exports = function registerResidentRoutes(app, prisma) {
   // PUBLIC: a resident claims the record staff created for them (lastName + birthDate must match)
   app.post('/api/resident/register', handle(async (req, res) => {
-    const { email, password, lastName, birthDate } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    const lastName = String(req.body.lastName || '').trim().replace(/\s+/g, ' ');
+    const birthDate = String(req.body.birthDate || '').slice(0, 10);
     if (!email || !password || !lastName || !birthDate) {
       return res.status(400).json({ error: 'email, password, lastName and birthDate are required.' });
     }
-    const resident = await prisma.resident.findFirst({
-      where: { lastName: { equals: lastName, mode: 'insensitive' }, birthDate: new Date(birthDate), accountId: null },
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (Number.isNaN(Date.parse(birthDate))) return res.status(400).json({ error: 'birthDate must be YYYY-MM-DD.' });
+    const matches = await prisma.resident.findMany({
+      where: { lastName: { equals: lastName, mode: 'insensitive' }, birthDate: new Date(birthDate) },
     });
-    if (!resident) return res.status(404).json({ error: 'No unclaimed resident record matches. Ask the barangay hall to add you first.' });
+    if (!matches.length) return res.status(404).json({ error: 'No resident record matches that surname and birth date. Ask the barangay hall to add you first.' });
+    const resident = matches.find((r) => !r.accountId);
+    if (!resident) return res.status(409).json({ error: 'This resident already has an online account. Sign in instead, or ask the barangay hall to help.' });
+    const taken = await prisma.publicAccount.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
+    if (taken) return res.status(409).json({ error: 'That email is already used by another account.' });
     await prisma.publicAccount.create({
       data: { email, passwordHash: await bcrypt.hash(password, 10), residentProfile: { connect: { residentId: resident.residentId } } },
     });
@@ -38,7 +47,7 @@ module.exports = function registerResidentRoutes(app, prisma) {
   // PUBLIC: resident login (token carries role "Resident" and the resident's own id)
   app.post('/api/resident/login', handle(async (req, res) => {
     const { email, password } = req.body;
-    const acc = await prisma.publicAccount.findUnique({ where: { email: String(email || '') }, include: { residentProfile: true } });
+    const acc = await prisma.publicAccount.findFirst({ where: { email: { equals: String(email || '').trim(), mode: 'insensitive' } }, include: { residentProfile: true } });
     if (!acc || !acc.residentProfile) return res.status(404).json({ error: 'Account not found' });
     if (acc.accountStatus !== 'Active') return res.status(403).json({ error: 'Account is not active.' });
     if (!(await bcrypt.compare(password || '', acc.passwordHash))) return res.status(401).json({ error: 'Incorrect password' });

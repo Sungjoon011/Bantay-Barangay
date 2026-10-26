@@ -25,16 +25,16 @@
     <h2 style="margin: 0; font-size: 20px;">Staff Sign In</h2>
     <p class="mu" style="margin-top: 4px; font-size: 13px;">Official LGU Administrative Portal</p>
   </div>
-  <form id="lf" style="display: flex; flex-direction: column; gap: 12px;">
-    <div>
+  <form id="lf" style="display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;">
+    <div style="width: 100%; max-width: 320px;">
       <label>Email Address</label>
-      <input id="em" value="admin2@barangay.com" placeholder="staff@barangay.gov.ph" style="width: 100%;">
+      <input id="em" value="admin2@barangay.com" placeholder="staff@barangay.gov.ph" style="width: 100%; text-align: center;">
     </div>
-    <div>
+    <div style="width: 100%; max-width: 320px;">
       <label>Password</label>
-      <input id="pw" type="password" placeholder="••••••••" style="width: 100%;">
+      <input id="pw" type="password" placeholder="••••••••" style="width: 100%; text-align: center;">
     </div>
-    <button style="margin-top: 8px; padding: 11px;">Access System</button>
+    <button style="margin-top: 8px; padding: 11px; width: 100%; max-width: 320px;">Access System</button>
   </form>
   <hr style="border: 0; border-top: 1px solid var(--ln); margin: 20px 0 16px;">
   <p class="mu" style="margin: 0; text-align: center; font-size: 12px;">
@@ -55,7 +55,7 @@
 <script src="announce-popup.js"></script>
 <script>
 (function(){'use strict';
-var token=null,role=null,uid=null,$=function(i){return document.getElementById(i)};
+var token=null,role=null,uid=null,lastHousehold=null,$=function(i){return document.getElementById(i)};
 function h(t,a,k){var e=document.createElement(t);a=a||{};Object.keys(a).forEach(function(n){if(n==='on')Object.keys(a.on).forEach(function(v){e.addEventListener(v,a.on[v])});else if(n==='text')e.textContent=a.text;else e.setAttribute(n,a[n])});(k||[]).forEach(function(c){e.appendChild(typeof c==='string'?document.createTextNode(c):c)});return e}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function say(m,ok){var t=$('toast');t.textContent=m;t.style.background=ok?'var(--ok)':'var(--bad)';t.style.display='block';setTimeout(function(){t.style.display='none'},3500)}
@@ -71,6 +71,9 @@ function form(fields,label,fn){var f=h('form');fields.forEach(function(x){var i;
 function card(t,k){return h('div',{class:'card'},[h('h3',{text:t})].concat(k))}
 function btn(t,fn,c){return h('button',{text:t,class:c||'alt',on:{click:fn}})}
 function opts(rows,v,l){return rows.map(function(r){return[r[v],l(r)]})}
+function editCard(v,title,fields,vals,save){var old=$('editcard');if(old)old.remove();
+ var f=form(fields,'Save Changes',function(d){save(d)});fields.forEach(function(x){if(vals[x[0]]!=null)f.elements[x[0]].value=vals[x[0]]});
+ f.appendChild(h('button',{type:'button',class:'alt',text:'Cancel',on:{click:function(){c.remove()}}}));var c=card(title,[f]);c.id='editcard';v.insertBefore(c,v.children[1]||null);window.scrollTo(0,0)}
 function nm(r){return r?r.firstName+' '+r.lastName:''}
 function date(v){return v?String(v).slice(0,10):''}
 
@@ -137,10 +140,23 @@ var VIEWS={
   var c=card('Active Document Processing Queue',[]);v.appendChild(c);api('GET','/documents').then(function(r){c.appendChild(docTable((r.d||[]).filter(function(d){return d.status!=='Claimed'&&d.status!=='Rejected'}),function(){show('home')}))})
  },
  residents:function(v){var list=card('Registered Barangay Residents',[]);
-  api('GET','/households').then(function(h1){var hh=h1.d||[];
-   v.appendChild(card('Add Household Record',[form([['addressDetails','House No. & Street'],['purokZone','Purok / Zone']],'Register Household',function(d){api('POST','/households',d).then(done('Household added',function(){show('residents')}))})]));
-   v.appendChild(card('Add Resident Record',[form([['householdId','Household Address','select',opts(hh,'householdId',function(x){return x.addressDetails+' ('+x.purokZone+')'})],['firstName','First Name'],['lastName','Surname'],['birthDate','Birth Date','date'],['gender','Gender','select',[['Male','Male'],['Female','Female'],['Other','Other']]],['civilStatus','Civil Status','select',[['Single','Single'],['Married','Married'],['Widowed','Widowed']]],['contactNumber','Mobile No.']],'Register Resident',function(d){api('POST','/residents',d).then(done('Resident added',function(){show('residents')}))})]));
-   v.appendChild(list);api('GET','/residents').then(function(r){list.appendChild(table(r.d||[],[['#',function(x){return x.residentId}],['Name',nm],['Birth Date',function(x){return date(x.birthDate)}],['Household Address',function(x){return x.household?x.household.addressDetails+', '+x.household.purokZone:''}],['Mobile No.',function(x){return x.contactNumber||''}],['Status',function(x){return x.recordStatus}]]))})})
+  api('GET','/households').then(function(h1){var hh=Array.isArray(h1.d)?h1.d:[];
+   if(!h1.ok)say(h1.d&&h1.d.error||'Could not load households');
+   v.appendChild(card('Add Household Record',[form([['addressDetails','House No. & Street'],['purokZone','Purok / Zone']],'Register Household',function(d){api('POST','/households',d).then(function(r){
+     if(r.ok){lastHousehold=r.d.householdId;say('Household added - it is now in the Household Address list',true);show('residents')}
+     else{if(r.d&&r.d.existingHouseholdId)lastHousehold=r.d.existingHouseholdId;say(r.d.error||'Error',false);if(lastHousehold)show('residents')}})})]));
+   var resForm=form([['householdId','Household Address','select',hh.length?opts(hh,'householdId',function(x){return x.addressDetails+' ('+x.purokZone+')'}):[['','No household yet - register one above first']]],['firstName','First Name'],['lastName','Surname'],['birthDate','Birth Date','date'],['gender','Gender','select',[['Male','Male'],['Female','Female'],['Other','Other']]],['civilStatus','Civil Status','select',[['Single','Single'],['Married','Married'],['Widowed','Widowed']]],['contactNumber','Mobile No.']],'Register Resident',function(d){
+     if(!d.householdId){say('Register a household first, then pick it here.',false);return}
+     api('POST','/residents',d).then(done('Resident added. Use "Create Account" in the list below to give them an online login.',function(){show('residents')}))});
+   if(lastHousehold&&resForm.elements.householdId)resForm.elements.householdId.value=String(lastHousehold);
+   v.appendChild(card('Add Resident Record',[resForm]));
+   v.appendChild(list);api('GET','/residents').then(function(r){list.appendChild(table(r.d||[],[['#',function(x){return x.residentId}],['Name',nm],['Birth Date',function(x){return date(x.birthDate)}],['Household Address',function(x){return x.household?x.household.addressDetails+', '+x.household.purokZone:''}],['Mobile No.',function(x){return x.contactNumber||''}],['Online Account',function(x){return x.accountId?'Has account':'None yet'}],['Status',function(x){return x.recordStatus}]],function(x){
+     var b=[btn('Edit',function(){editCard(v,'Edit Resident #'+x.residentId+' - '+nm(x),[['firstName','First Name'],['lastName','Surname'],['birthDate','Birth Date','date'],['gender','Gender','select',[['Male','Male'],['Female','Female'],['Other','Other']]],['civilStatus','Civil Status','select',[['Single','Single'],['Married','Married'],['Widowed','Widowed']]],['contactNumber','Mobile No.'],['householdId','Household Address','select',opts(hh,'householdId',function(q){return q.addressDetails+' ('+q.purokZone+')'})],['recordStatus','Record Status','select',[['Active','Active'],['Moved','Moved'],['Deceased','Deceased']]]],
+       {firstName:x.firstName,lastName:x.lastName,birthDate:date(x.birthDate),gender:x.gender,civilStatus:x.civilStatus,contactNumber:x.contactNumber||'',householdId:x.householdId,recordStatus:x.recordStatus},
+       function(d){api('PUT','/residents/'+x.residentId,d).then(done('Resident updated',function(){show('residents')}))})})];
+     if(!x.accountId&&x.recordStatus==='Active')b.push(btn('Create Account',function(){var em=prompt('Email for '+nm(x)+"'s online account:");if(!em)return;var pw=prompt('Temporary password (at least 8 characters):');if(!pw)return;
+       api('POST','/residents/'+x.residentId+'/account',{email:em,password:pw}).then(done('Online account created',function(){show('residents')}))}));
+     return b}))})})
  },
  documents:function(v){api('GET','/residents').then(function(rs){api('GET','/fees').then(function(fs){
    v.appendChild(card('Create New Document Request',[form([['residentId','Select Resident','select',opts(rs.d||[],'residentId',nm)],['documentType','Document Type','select',opts(fs.d||[],'documentType',function(x){return x.documentType+' (₱'+x.fee+')'})],['purpose','Request Purpose']],'Submit Request',function(d){api('POST','/documents',d).then(done('Request created',function(){show('documents')}))})]));
@@ -172,10 +188,14 @@ var VIEWS={
     me.appendChild(h('p',{text:'Only an Admin can add or remove staff accounts.',class:'mu'}))});
    return}
   v.appendChild(card('Create Staff Account',[form([['email','Email Address'],['password','Password','password'],['systemRole','System Role','select',[['Staff','Staff'],['Official','Official'],['Admin','Admin']]],['firstName','First Name'],['lastName','Surname'],['positionTitle','Position / Title']],'Create Account',function(d){api('POST','/staff',d).then(done('Staff account created',function(){show('staff')}))})]));
-  var c=card('Staff & Official Accounts',[]);v.appendChild(c);api('GET','/staff').then(function(r){c.appendChild(table(r.d||[],[['Email',function(a){return a.email}],['Role',function(a){return a.systemRole}],['Name',function(a){return nm(a.staffProfile)}],['Position',function(a){return a.staffProfile?a.staffProfile.positionTitle:''}],['Status',function(a){return a.accountStatus}]],function(a){
-    if(a.accountStatus!=='Active')return[btn('Reactivate',function(){api('PUT','/staff/'+a.accountId,{accountStatus:'Active'}).then(done('Account reactivated',function(){show('staff')}))},'')];
-    if(a.accountId===uid)return[];
-    return[btn('Remove',function(){if(confirm('Remove '+(nm(a.staffProfile)||a.email)+'? They will no longer be able to log in.'))api('DELETE','/staff/'+a.accountId).then(done('Staff account removed',function(){show('staff')}))},'bad')]}))})
+  var c=card('Staff & Official Accounts',[]);v.appendChild(c);api('GET','/staff').then(function(r){c.appendChild(table(r.d||[],[['Email',function(a){return a.email}],['Role',function(a){return a.systemRole}],['Name',function(a){return nm(a.staffProfile)}],['Position',function(a){return a.staffProfile?a.staffProfile.positionTitle:''}],['Status',function(a){return a.accountStatus}]],function(a){var p=a.staffProfile||{};
+    var edit=btn('Edit',function(){var self=a.accountId===uid;var fl=[['firstName','First Name'],['lastName','Surname'],['positionTitle','Position / Title']];
+     if(!self)fl.push(['systemRole','System Role','select',[['Staff','Staff'],['Official','Official'],['Admin','Admin']]],['accountStatus','Account Status','select',[['Active','Active'],['Inactive','Inactive'],['Banned','Banned']]]);
+     editCard($('view'),'Edit Staff Profile - '+(nm(p)||a.email),fl,{firstName:p.firstName||'',lastName:p.lastName||'',positionTitle:p.positionTitle||'',systemRole:a.systemRole,accountStatus:a.accountStatus},
+      function(d){api('PUT','/staff/'+a.accountId,d).then(done('Staff profile updated',function(){show('staff')}))})});
+    if(a.accountStatus!=='Active')return[edit,btn('Reactivate',function(){api('PUT','/staff/'+a.accountId,{accountStatus:'Active'}).then(done('Account reactivated',function(){show('staff')}))},'')];
+    if(a.accountId===uid)return[edit];
+    return[edit,btn('Remove',function(){if(confirm('Remove '+(nm(a.staffProfile)||a.email)+'? They will no longer be able to log in.'))api('DELETE','/staff/'+a.accountId).then(done('Staff account removed',function(){show('staff')}))},'bad')]}))})
  },
  announcements:function(v){
   // Everyone: all accounts (staff + residents) | All residents | one purok. Staff / Official can edit or delete only their own posts.

@@ -193,7 +193,7 @@ var TABS = {
   payments: 'Payments & Settlement',
   documents: 'Request Documents',
   complaints: 'File Incident / Complaint',
-  appointments: 'Book Appointment',
+  appointments: 'Appointment Schedule',
   announcements: 'Announcements',
   profile: 'My Resident Profile'
 };
@@ -566,27 +566,52 @@ var RENDER_VIEWS = {
   },
 
   complaints: function(v, d) {
+    var CATS = {
+      Incident: ['Theft / Robbery','Physical Fight / Assault','Vandalism / Property Damage','Accident','Fire','Flooding / Natural Disaster','Missing Person','Other Incident'],
+      Complaint: ['Noise Disturbance (e.g., videoke)','Boundary Dispute','Debt / Utang Dispute','Improper Waste Disposal / Sanitation','Stray or Unleashed Animals','Neighbor Dispute / Minor Quarrel','Obstruction / Illegal Construction','Other Complaint']
+    };
     var formCard = document.createElement('div');
-    formCard.className = 'card';
-    formCard.innerHTML = 
+    formCard.className = 'card complaint-form';
+    formCard.innerHTML =
+      '<style>.complaint-form select,.complaint-form input:not([type=radio]),.complaint-form textarea{width:100%;box-sizing:border-box;}</style>' +
       '<h3>File an Incident / Complaint</h3>' +
-      '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:12px;">' +
-        '<div><label>Incident Type</label><input id="ct" placeholder="e.g., Noise Disturbance, Property Boundary"></div>' +
-        '<div><label>Respondent / Person Involved</label><input id="cr" placeholder="Name or description"></div>' +
+      '<div style="margin-bottom:14px;"><label>Report Type</label>' +
+        '<div style="display:flex; gap:32px; padding:6px 4px;">' +
+          '<label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;"><input type="radio" name="rtype" value="Incident" style="width:auto;"> Incident Report</label>' +
+          '<label style="display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer;"><input type="radio" name="rtype" value="Complaint" style="width:auto;" checked> Complaint Report</label>' +
+        '</div></div>' +
+      '<div style="margin-bottom:14px;"><label>Category</label><select id="ct"></select></div>' +
+      '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-bottom:14px;">' +
+        '<div><label id="crl">Respondent Name / Entity</label><input id="cr" placeholder="Name of the person or group involved"></div>' +
         '<div><label>Date of Incident</label><input id="cd" type="date"></div>' +
       '</div>' +
-      '<div style="margin-bottom:12px;"><label>Description / Details</label><textarea id="cx" rows="3" placeholder="Provide a brief summary of what happened..."></textarea></div>' +
-      '<button id="cb">Submit Complaint</button>';
+      '<div style="margin-bottom:14px;"><label>Detailed Description</label><textarea id="cx" rows="9" style="min-height:240px; resize:vertical; width:100%;" placeholder="Describe what happened: when, where, who was involved, and anything the barangay should know..."></textarea></div>' +
+      '<button id="cb">Submit Report</button>';
     v.appendChild(formCard);
     document.getElementById('cd').max = today(); // an incident cannot have happened in the future
 
+    function rtype(){ return formCard.querySelector('input[name="rtype"]:checked').value; }
+    function fillCategories(){
+      var sel = document.getElementById('ct');
+      sel.innerHTML = '<option value="">Select a Category...</option>';
+      CATS[rtype()].forEach(function(c){ var o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+      // an accident or fire may have nobody to blame, so the respondent is optional for incident reports
+      document.getElementById('crl').textContent = rtype() === 'Incident' ? 'Person / Entity Involved (optional)' : 'Respondent Name / Entity';
+    }
+    Array.prototype.forEach.call(formCard.querySelectorAll('input[name="rtype"]'), function(r){ r.onchange = fillCategories; });
+    fillCategories();
+
     document.getElementById('cb').onclick = function(){
+      var cat = document.getElementById('ct').value;
+      if(!cat){ say('Please select a category.', false); return; }
+      var respondent = document.getElementById('cr').value.trim();
+      if(!respondent && rtype() === 'Complaint'){ say('Please enter who the complaint is about.', false); return; }
       send('/me/complaints',{
-        incidentType: document.getElementById('ct').value,
-        respondentName: document.getElementById('cr').value,
+        incidentType: rtype() + ' Report: ' + cat,
+        respondentName: respondent || 'Not applicable',
         dateOfIncident: document.getElementById('cd').value,
         description: document.getElementById('cx').value
-      },'Complaint submitted. Barangay officials will review your filing.');
+      },'Report submitted. Barangay officials will review your filing.');
     };
   },
 
@@ -594,7 +619,7 @@ var RENDER_VIEWS = {
     var formCard = document.createElement('div');
     formCard.className = 'card';
     formCard.innerHTML = 
-      '<h3>Scheduled Office Appointments</h3>' +
+      '<h3>Appointment Schedule</h3>' +
       '<p class="mu" style="font-size:13px; margin-bottom:16px;">Appointments scheduled for cash payment or document collection at the Barangay Hall.</p>';
 
     var ul = document.createElement('ul');
