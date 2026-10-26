@@ -1,1101 +1,201 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bantay-Barangay | Community Incident & Operations Portal</title>
-  
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: '#f0fdf4',
-              100: '#dcfce7',
-              500: '#22c55e',
-              600: '#16a34a',
-              700: '#15803d',
-              900: '#14532d',
-            },
-            accent: {
-              500: '#0284c7',
-              600: '#0369a1',
-              900: '#0c4a6e',
-            }
-          }
-        }
-      }
-    }
-  </script>
-
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-
-  <!-- Google Fonts Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-
-  <style>
-    body { font-family: 'Inter', sans-serif; }
-    code, pre { font-family: 'JetBrains Mono', monospace; }
-    
-    /* Custom Scrollbars */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-    .toast-slide-in {
-      animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    @keyframes toastIn {
-      from { transform: translateY(100%) opacity(0); }
-      to { transform: translateY(0) opacity(1); }
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bantay-Barangay | Staff Portal</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/png" href="/seal.png">
 </head>
-<body class="h-full flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-brand-500 selection:text-slate-950">
-
-  <!-- ========================================== -->
-  <!-- TOP HEADER & BRANDING                      -->
-  <!-- ========================================== -->
-  <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex items-center justify-between h-16">
-        
-        <!-- Brand & Emergency Badge -->
-        <div class="flex items-center gap-3">
-          <div class="p-2 bg-gradient-to-tr from-brand-600 to-accent-500 rounded-xl shadow-lg shadow-brand-500/10 ring-1 ring-white/20">
-            <i data-lucide="shield-alert" class="w-6 h-6 text-white"></i>
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-                Bantay-Barangay
-              </span>
-              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/30">
-                v1.0 API Engine
-              </span>
-            </div>
-            <p class="text-xs text-slate-400 hidden sm:block">Community Operations & Incident Management System</p>
-          </div>
-        </div>
-
-        <!-- API Connection Status & Role Selector -->
-        <div class="flex items-center gap-3 sm:gap-4">
-          
-          <!-- Live Status Indicator -->
-          <div id="connectionStatusBadge" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-500/30 transition-all">
-            <span class="relative flex h-2 w-2">
-              <span id="statusPing" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-              <span id="statusDot" class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-            </span>
-            <span id="statusText" class="hidden md:inline">Checking Localhost:5000...</span>
-          </div>
-
-          <!-- RBAC Role Dropdown Switcher -->
-          <div class="relative inline-block text-left">
-            <div class="flex items-center gap-2 bg-slate-800/80 p-1.5 pl-3 rounded-xl ring-1 ring-slate-700/80">
-              <i data-lucide="user-check" class="w-4 h-4 text-slate-400"></i>
-              <span class="text-xs text-slate-400 hidden lg:inline">Role:</span>
-              <select id="userRoleSelect" onchange="handleRoleChange()" class="bg-transparent text-xs font-semibold text-slate-200 focus:outline-none cursor-pointer pr-2">
-                <option value="Admin" class="bg-slate-900 text-slate-200">Admin (Full Access)</option>
-                <option value="Staff" class="bg-slate-900 text-slate-200">Barangay Staff / Responder</option>
-                <option value="Resident" class="bg-slate-900 text-slate-200">Standard Resident</option>
-              </select>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <!-- MAIN NAVIGATION TABS -->
-    <nav class="bg-slate-900/50 border-t border-slate-800/80 overflow-x-auto no-scrollbar">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex space-x-1 sm:space-x-2 py-2 text-xs font-medium min-w-max">
-          <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all bg-brand-500/10 text-brand-400 ring-1 ring-brand-500/30">
-            <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Dashboard
-          </button>
-          <button onclick="switchTab('report')" id="tab-report" class="tab-btn px-3.5 py-2 rounded-lg flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
-            <i data-lucide="file-plus" class="w-4 h-4"></i> Report Incident
-          </button>
-          <button onclick="switchTab('incidents')" id="tab-incidents" class="tab-btn px-3.5 py-2 rounded-lg flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
-            <i data-lucide="list-checks" class="w-4 h-4"></i> Incident Records
-          </button>
-          <button onclick="switchTab('certificates')" id="tab-certificates" class="tab-btn px-3.5 py-2 rounded-lg flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
-            <i data-lucide="file-text" class="w-4 h-4"></i> Certificate Issuance
-          </button>
-          <button onclick="switchTab('audit')" id="tab-audit" class="tab-btn px-3.5 py-2 rounded-lg flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
-            <i data-lucide="history" class="w-4 h-4"></i> Audit Logs (DB Triggers)
-          </button>
-          <button onclick="switchTab('architecture')" id="tab-architecture" class="tab-btn px-3.5 py-2 rounded-lg flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all">
-            <i data-lucide="cpu" class="w-4 h-4"></i> System Architecture / Defense
-          </button>
-        </div>
-      </div>
-    </nav>
-  </header>
-
-  <!-- ========================================== -->
-  <!-- MAIN CONTENT VIEWPORTS                     -->
-  <!-- ========================================== -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-
-    <!-- 1. ANALYTICS OVERVIEW CARDS (ALWAYS VISIBLE TOP SUMMARY) -->
-    <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
-      
-      <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800/80 shadow-xl relative overflow-hidden group">
-        <div class="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-          <i data-lucide="alert-triangle" class="w-16 h-16 text-slate-200"></i>
-        </div>
-        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Incidents</p>
-        <div class="flex items-baseline gap-2 mt-2">
-          <span id="statTotalIncidents" class="text-2xl sm:text-3xl font-extrabold text-slate-100">0</span>
-          <span class="text-xs text-slate-500 font-medium">Logged</span>
-        </div>
-        <div class="mt-2 text-[11px] text-slate-400 flex items-center gap-1">
-          <i data-lucide="database" class="w-3 h-3 text-brand-500"></i> Real-time DB Fetch
-        </div>
-      </div>
-
-      <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800/80 shadow-xl relative overflow-hidden group">
-        <div class="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-          <i data-lucide="siren" class="w-16 h-16 text-amber-500"></i>
-        </div>
-        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Pending / Reported</p>
-        <div class="flex items-baseline gap-2 mt-2">
-          <span id="statReportedIncidents" class="text-2xl sm:text-3xl font-extrabold text-amber-400">0</span>
-          <span class="text-xs text-amber-500/80 font-medium">Active</span>
-        </div>
-        <div class="mt-2 text-[11px] text-slate-400 flex items-center gap-1">
-          <i data-lucide="clock" class="w-3 h-3 text-amber-400"></i> Requires Dispatch
-        </div>
-      </div>
-
-      <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800/80 shadow-xl relative overflow-hidden group">
-        <div class="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-          <i data-lucide="check-circle-2" class="w-16 h-16 text-emerald-500"></i>
-        </div>
-        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Resolved Cases</p>
-        <div class="flex items-baseline gap-2 mt-2">
-          <span id="statResolvedIncidents" class="text-2xl sm:text-3xl font-extrabold text-emerald-400">0</span>
-          <span class="text-xs text-emerald-500/80 font-medium">Closed</span>
-        </div>
-        <div class="mt-2 text-[11px] text-slate-400 flex items-center gap-1">
-          <i data-lucide="shield-check" class="w-3 h-3 text-emerald-400"></i> Action Completed
-        </div>
-      </div>
-
-      <div class="bg-slate-900/80 p-4 rounded-2xl border border-slate-800/80 shadow-xl relative overflow-hidden group">
-        <div class="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-          <i data-lucide="activity" class="w-16 h-16 text-cyan-500"></i>
-        </div>
-        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Automated Audit Logs</p>
-        <div class="flex items-baseline gap-2 mt-2">
-          <span id="statAuditLogsCount" class="text-2xl sm:text-3xl font-extrabold text-cyan-400">0</span>
-          <span class="text-xs text-cyan-500/80 font-medium">Triggers</span>
-        </div>
-        <div class="mt-2 text-[11px] text-slate-400 flex items-center gap-1">
-          <i data-lucide="zap" class="w-3 h-3 text-cyan-400"></i> DB Trigger Processed
-        </div>
-      </div>
-
-    </section>
-
-    <!-- SECTION 1: DASHBOARD OVERVIEW VIEW -->
-    <div id="view-dashboard" class="space-y-6">
-      
-      <!-- Welcome Banner & Quick Action Grid -->
-      <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800/80 p-6 rounded-2xl border border-slate-800 relative overflow-hidden">
-        <div class="max-w-3xl space-y-3 relative z-10">
-          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-brand-500/10 text-brand-400 ring-1 ring-inset ring-brand-500/30">
-            <i data-lucide="radio" class="w-3.5 h-3.5"></i> Live Operations Console
-          </span>
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Barangay Security, Emergencies & Citizen Operations</h1>
-          <p class="text-sm text-slate-400 leading-relaxed">
-            Welcome to the centralized operations portal. This interface connects directly to your PostgreSQL/MySQL cloud database API, enforcing 3NF relational data structures, DB-level automated triggers, and server-side stored procedures.
-          </p>
-          <div class="pt-2 flex flex-wrap gap-3">
-            <button onclick="switchTab('report')" class="px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-brand-600/20 flex items-center gap-2 transition-all">
-              <i data-lucide="plus-circle" class="w-4 h-4"></i> File New Incident
-            </button>
-            <button onclick="fetchIncidents()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-slate-700 flex items-center gap-2 transition-all">
-              <i data-lucide="refresh-cw" class="w-4 h-4"></i> Refresh API Data
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Live Recent Activity & System Status -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        <!-- Recent Incident Feed (2 Cols) -->
-        <div class="lg:col-span-2 bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-4">
-          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-              <i data-lucide="siren" class="w-4 h-4 text-brand-400"></i> Priority Incident Queue
-            </h3>
-            <button onclick="switchTab('incidents')" class="text-xs text-brand-400 hover:underline font-medium">View All Records &rarr;</button>
-          </div>
-          <div id="dashboardRecentFeed" class="space-y-3">
-            <!-- Dynamic Feed Loaded via JS -->
-          </div>
-        </div>
-
-        <!-- RBAC Privileges & System Specs Widget -->
-        <div class="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-4">
-          <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <i data-lucide="shield-check" class="w-4 h-4 text-cyan-400"></i> Role Access Privileges
-          </h3>
-          <div id="rbacPrivilegeCard" class="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
-            <!-- Dynamic RBAC Status loaded via JS -->
-          </div>
-          <div class="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
-            <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Backend Compliance</div>
-            <ul class="text-xs space-y-1.5 text-slate-300">
-              <li class="flex items-center gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> Prepared Statements Enforcement</li>
-              <li class="flex items-center gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> Decoupled Express.js API Architecture</li>
-              <li class="flex items-center gap-2"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i> Automated Audit Trigger Logging</li>
-            </ul>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-
-    <!-- SECTION 2: REPORT INCIDENT FORM VIEW -->
-    <div id="view-report" class="hidden space-y-6">
-      <div class="max-w-2xl mx-auto bg-slate-900/90 p-6 sm:p-8 rounded-2xl border border-slate-800 shadow-2xl space-y-6">
-        
-        <div>
-          <div class="flex items-center gap-2 text-brand-400 text-xs font-bold uppercase tracking-wider mb-1">
-            <i data-lucide="alert-circle" class="w-4 h-4"></i> Public Safety Dispatch
-          </div>
-          <h2 class="text-xl sm:text-2xl font-extrabold text-white">File Official Incident Report</h2>
-          <p class="text-xs text-slate-400 mt-1">This entry will execute a parameterized POST request to `http://localhost:5000/api/incidents`.</p>
-        </div>
-
-        <form id="incidentReportForm" onsubmit="handleReportSubmit(event)" class="space-y-4">
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1.5">Reporter User ID</label>
-              <input type="number" id="formReporterId" required value="1" min="1" class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50">
-              <span class="text-[10px] text-slate-500">Mapped to foreign key `reporter_id`</span>
-            </div>
-
-            <div>
-              <label class="block text-xs font-medium text-slate-300 mb-1.5">Sitio / Specific Location</label>
-              <input type="text" id="formLocation" required placeholder="e.g., Sitio Uno, Main St. corner Road 4" class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50">
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1.5">Incident Headline / Title</label>
-            <input type="text" id="formTitle" required placeholder="e.g., Minor Vehicular Collision near Barangay Hall" class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50">
-          </div>
-
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1.5">Detailed Description</label>
-            <textarea id="formDescription" required rows="4" placeholder="Provide complete facts, involved parties, or immediate assistance needed..." class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500/50"></textarea>
-          </div>
-
-          <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 text-xs text-slate-400 flex items-start gap-2">
-            <i data-lucide="info" class="w-4 h-4 text-brand-400 shrink-0 mt-0.5"></i>
-            <span>Creating an incident will trigger backend validations and log an initial record entry into the live relational database.</span>
-          </div>
-
-          <div class="pt-2 flex items-center justify-end gap-3">
-            <button type="button" onclick="switchTab('dashboard')" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-all">Cancel</button>
-            <button type="submit" id="submitReportBtn" class="px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-brand-600/20 flex items-center gap-2 transition-all">
-              <i data-lucide="send" class="w-4 h-4"></i> Submit Incident Record
-            </button>
-          </div>
-
-        </form>
-
-      </div>
-    </div>
-
-    <!-- SECTION 3: INCIDENT RECORDS MANAGEMENT VIEW -->
-    <div id="view-incidents" class="hidden space-y-4">
-      
-      <!-- Table Filter Bar -->
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
-        <div>
-          <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
-            <i data-lucide="database" class="w-4 h-4 text-brand-400"></i> Relational Incident Log
-          </h2>
-          <p class="text-xs text-slate-400">Live query records fetched via Express controller</p>
-        </div>
-
-        <div class="flex items-center gap-3 w-full sm:w-auto">
-          <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs text-slate-300">
-            <i data-lucide="filter" class="w-3.5 h-3.5 text-slate-400"></i>
-            <span>Filter Status:</span>
-            <select id="filterStatusSelect" onchange="filterIncidentsTable()" class="bg-transparent text-xs font-semibold text-brand-400 focus:outline-none cursor-pointer">
-              <option value="ALL" class="bg-slate-900 text-slate-200">All Statuses</option>
-              <option value="REPORTED" class="bg-slate-900 text-slate-200">REPORTED</option>
-              <option value="IN_PROGRESS" class="bg-slate-900 text-slate-200">IN_PROGRESS</option>
-              <option value="RESOLVED" class="bg-slate-900 text-slate-200">RESOLVED</option>
-            </select>
-          </div>
-
-          <button onclick="fetchIncidents()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 transition-all" title="Reload Table">
-            <i data-lucide="rotate-cw" class="w-4 h-4"></i>
-          </button>
-        </div>
-      </div>
-
-      <!-- Main Incidents Data Table -->
-      <div class="bg-slate-900/90 rounded-2xl border border-slate-800 overflow-hidden shadow-2xl">
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-slate-950/80 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
-              <tr>
-                <th class="px-4 py-3.5">ID</th>
-                <th class="px-4 py-3.5">Title & Location</th>
-                <th class="px-4 py-3.5">Reporter</th>
-                <th class="px-4 py-3.5">Status</th>
-                <th class="px-4 py-3.5">Reported Timestamp</th>
-                <th class="px-4 py-3.5 text-right">Actions (Stored Procedure)</th>
-              </tr>
-            </thead>
-            <tbody id="incidentsTableBody" class="divide-y divide-slate-800 text-slate-300 font-medium">
-              <!-- Rendered via JS -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- SECTION 4: CERTIFICATE REQUESTS VIEW (SIMULATED CRUD) -->
-    <div id="view-certificates" class="hidden space-y-6">
-      
-      <div class="bg-slate-900/80 p-6 rounded-2xl border border-slate-800 space-y-4">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <span class="text-xs font-bold text-accent-500 uppercase tracking-wider">Civil Operations</span>
-            <h2 class="text-xl font-extrabold text-slate-100">Barangay Clearance & Indigency Issuance</h2>
-            <p class="text-xs text-slate-400 mt-0.5">Manages requests mapped to Resident foreign key records in the relational schema.</p>
-          </div>
-          <button onclick="openCertificateModal()" class="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white font-semibold text-xs rounded-xl flex items-center gap-2 transition-all">
-            <i data-lucide="file-badge" class="w-4 h-4"></i> Request New Clearance
-          </button>
-        </div>
-
-        <!-- Requests Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2" id="certificatesGrid">
-          <!-- Dynamic Cert Cards -->
-        </div>
-      </div>
-
-    </div>
-
-    <!-- SECTION 5: AUTOMATED AUDIT LOGS VIEW (TRIGGER MONITOR) -->
-    <div id="view-audit" class="hidden space-y-4">
-      
-      <div class="bg-slate-900/90 p-5 rounded-2xl border border-slate-800 space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="inline-block w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
-              <h2 class="text-base font-bold text-slate-100">Database Trigger Audit Stream</h2>
-            </div>
-            <p class="text-xs text-slate-400 mt-1">
-              Direct log output from PL/pgSQL function <code class="text-cyan-300 bg-slate-950 px-1.5 py-0.5 rounded">process_incident_audit_log()</code> executed automatically inside PostgreSQL upon mutations.
-            </p>
-          </div>
-          <button onclick="fetchAuditLogs()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-semibold rounded-xl border border-slate-700 flex items-center gap-2">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh Logs
-          </button>
-        </div>
-      </div>
-
-      <!-- Audit Logs List -->
-      <div id="auditLogsContainer" class="space-y-3">
-        <!-- Rendered via JS -->
-      </div>
-
-    </div>
-
-    <!-- SECTION 6: SYSTEM ARCHITECTURE & DEFENSE AUDIT GUIDE -->
-    <div id="view-architecture" class="hidden space-y-6">
-      
-      <div class="bg-slate-900/90 p-6 rounded-2xl border border-slate-800 space-y-4">
-        <div>
-          <span class="text-xs font-bold text-brand-400 uppercase tracking-wider">Finals Evaluation Matrix</span>
-          <h2 class="text-xl sm:text-2xl font-extrabold text-white">System Architecture & Q&A Defense Blueprint</h2>
-          <p class="text-xs text-slate-400 mt-1">Comprehensive breakdown of backend engineering, database normalization, security, and trigger mechanics for live instructor evaluation.</p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-          
-          <!-- Card 1: 3NF Normalization -->
-          <div class="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-            <div class="flex items-center gap-2 text-brand-400 font-semibold text-sm">
-              <i data-lucide="layers" class="w-4 h-4"></i> 3rd Normal Form (3NF) Compliance
-            </div>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              All entities strictly eliminate transitive functional dependencies. Separate models exist for <code class="text-emerald-400">roles</code>, <code class="text-emerald-400">users</code>, <code class="text-emerald-400">residents</code>, <code class="text-emerald-400">incidents</code>, and <code class="text-emerald-400">certificate_requests</code> with zero redundant text duplicates.
-            </p>
-            <div class="p-2.5 bg-slate-900 rounded-lg text-[11px] text-slate-400 border border-slate-800">
-              <span class="font-bold text-slate-200">Junction Tables Implemented:</span>
-              <ul class="list-disc list-inside mt-1 space-y-0.5">
-                <li><code class="text-cyan-300">user_roles</code> (Composite PK: userId + roleId)</li>
-                <li><code class="text-cyan-300">incident_responders</code> (Composite PK: incidentId + residentId)</li>
-              </ul>
-            </div>
-          </div>
-
-          <!-- Card 2: Server-Side Automation -->
-          <div class="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-            <div class="flex items-center gap-2 text-cyan-400 font-semibold text-sm">
-              <i data-lucide="cpu" class="w-4 h-4"></i> Triggers & Stored Procedures
-            </div>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              Business calculations and transaction logs do not run in Node.js application memory. They run natively in the PostgreSQL database engine.
-            </p>
-            <div class="p-2.5 bg-slate-900 rounded-lg text-[11px] text-slate-400 border border-slate-800 space-y-1">
-              <div><span class="font-bold text-slate-200">Trigger:</span> <code class="text-cyan-300">trigger_incident_audit</code> (AFTER UPDATE/DELETE)</div>
-              <div><span class="font-bold text-slate-200">Stored Proc:</span> <code class="text-cyan-300">update_incident_status(id, status, updated_by)</code></div>
-            </div>
-          </div>
-
-          <!-- Card 3: RBAC & SQL Injection Prevention -->
-          <div class="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-            <div class="flex items-center gap-2 text-amber-400 font-semibold text-sm">
-              <i data-lucide="shield-check" class="w-4 h-4"></i> Security & SQL Injection Neutralization
-            </div>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              Raw SQL string concatenations are strictly forbidden. Data payloads route into PostgreSQL via Prisma Prepared Statements. The app connects using restricted database role <code class="text-amber-300">app_user</code> instead of root superuser permissions.
-            </p>
-          </div>
-
-          <!-- Card 4: Cloud Hosting & Resilience -->
-          <div class="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-            <div class="flex items-center gap-2 text-purple-400 font-semibold text-sm">
-              <i data-lucide="cloud" class="w-4 h-4"></i> Cloud Relational Hosting
-            </div>
-            <p class="text-xs text-slate-300 leading-relaxed">
-              Production environment configured with zero reliance on local database instances. Connected live to managed serverless PostgreSQL instance (Neon / Supabase) with SSL connection string routing.
-            </p>
-          </div>
-
-        </div>
-
-        <!-- Defense Q&A Cheatsheet -->
-        <div class="p-5 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
-          <h3 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-            <i data-lucide="help-circle" class="w-4 h-4 text-brand-400"></i> Instructor "What-If" Defense Preparedness
-          </h3>
-          <div class="space-y-2 text-xs">
-            <div class="p-3 bg-slate-900 rounded-lg border border-slate-800">
-              <span class="font-bold text-brand-400">Q: "What happens if I manually delete a parent user row directly in the database GUI?"</span>
-              <p class="text-slate-300 mt-1">A: Explicit referential cascade constraints (<code class="text-emerald-300">onDelete: Cascade</code>) will delete associated resident profiles, preventing orphaned foreign key rows in production.</p>
-            </div>
-            <div class="p-3 bg-slate-900 rounded-lg border border-slate-800">
-              <span class="font-bold text-brand-400">Q: "How do you verify audit logs aren't faked by frontend JS?"</span>
-              <p class="text-slate-300 mt-1">A: Audit logs are recorded directly by the PostgreSQL database engine trigger <code class="text-cyan-300">process_incident_audit_log()</code> during the database transaction cycle, bypassing application logic.</p>
-            </div>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-
-  </main>
-
-  <!-- ========================================== -->
-  <!-- MODAL: CERTIFICATE REQUEST FORM            -->
-  <!-- ========================================== -->
-  <div id="certificateModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-        <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
-          <i data-lucide="file-text" class="w-4 h-4 text-accent-500"></i> Request Barangay Clearance
-        </h3>
-        <button onclick="closeCertificateModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
-      </div>
-
-      <form onsubmit="handleCertificateSubmit(event)" class="space-y-3 text-xs">
-        <div>
-          <label class="block font-medium text-slate-300 mb-1">Resident Profile ID</label>
-          <input type="number" id="certResidentId" required value="1" min="1" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200">
-        </div>
-        <div>
-          <label class="block font-medium text-slate-300 mb-1">Clearance Type</label>
-          <select id="certTypeId" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200">
-            <option value="1">Barangay Clearance (₱50.00)</option>
-            <option value="2">Certificate of Indigency (FREE)</option>
-            <option value="3">Barangay Residency Cert (₱30.00)</option>
-          </select>
-        </div>
-        <div>
-          <label class="block font-medium text-slate-300 mb-1">Purpose of Request</label>
-          <input type="text" id="certPurpose" required placeholder="e.g., Employment, Scholarship Application" class="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200">
-        </div>
-        <div class="pt-2 flex justify-end gap-2">
-          <button type="button" onclick="closeCertificateModal()" class="px-3 py-2 bg-slate-800 text-slate-300 rounded-xl">Cancel</button>
-          <button type="submit" class="px-4 py-2 bg-accent-600 hover:bg-accent-500 text-white font-semibold rounded-xl">Submit Request</button>
-        </div>
-      </form>
-    </div>
+<body>
+<div id="alert"></div>
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <b>Bantay-Barangay Staff Portal</b>
   </div>
+  <span id="who" class="mu"></span>
+</header>
 
-  <!-- TOAST NOTIFICATION CONTAINER -->
-  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+<main>
+<!-- SIGN IN CARD -->
+<section id="login" class="card" style="max-width: 440px; margin: 40px auto; padding: 28px;">
+  <div style="text-align: center; margin-bottom: 20px;">
+    <img class="seal-lg" src="/seal.png" alt="Bantay Barangay seal">
+    <h2 style="margin: 0; font-size: 20px;">Staff Sign In</h2>
+    <p class="mu" style="margin-top: 4px; font-size: 13px;">Official LGU Administrative Portal</p>
+  </div>
+  <form id="lf" style="display: flex; flex-direction: column; gap: 12px;">
+    <div>
+      <label>Email Address</label>
+      <input id="em" value="admin2@barangay.com" placeholder="staff@barangay.gov.ph" style="width: 100%;">
+    </div>
+    <div>
+      <label>Password</label>
+      <input id="pw" type="password" placeholder="••••••••" style="width: 100%;">
+    </div>
+    <button style="margin-top: 8px; padding: 11px;">Access System</button>
+  </form>
+  <hr style="border: 0; border-top: 1px solid var(--ln); margin: 20px 0 16px;">
+  <p class="mu" style="margin: 0; text-align: center; font-size: 12px;">
+    Public Services: <a href="/resident.html">Resident Portal</a> · <a href="/verify.html">Verify Document</a>
+  </p>
+</section>
 
-  <!-- ========================================== -->
-  <!-- JAVASCRIPT & API LOGIC ENGINES             -->
-  <!-- ========================================== -->
-  <script>
-    // CORE API CONFIGURATION
-    const API_BASE_URL = 'http://localhost:5000/api';
-    
-    // APPLICATION STATE
-    let state = {
-      isApiConnected: false,
-      activeRole: 'Admin', // Admin, Staff, Resident
-      incidents: [],
-      auditLogs: [],
-      certificates: [
-        { id: 101, residentName: 'Juan Dela Cruz', type: 'Barangay Clearance', purpose: 'Job Application', status: 'PENDING', fee: '₱50.00', date: '2026-10-20' },
-        { id: 102, residentName: 'Maria Santos', type: 'Certificate of Indigency', purpose: 'Medical Financial Assistance', status: 'APPROVED', fee: 'FREE', date: '2026-10-19' }
-      ]
-    };
+<!-- MAIN APP DASHBOARD -->
+<section id="app" class="hide">
+  <nav id="nav"></nav>
+  <div id="view"></div>
+</section>
+</main>
 
-    // MOCK FALLBACK DATA WHEN LOCALHOST:5000 IS OFFLINE
-    const MOCK_INCIDENTS = [
-      {
-        id: 1,
-        title: 'Noise Complaint & Disturbance',
-        description: 'Loud karaoke music past midnight near Purok 3 basketball court.',
-        location: 'Sitio Uno, Purok 3',
-        status: 'REPORTED',
-        reportedAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-        reporter: { id: 1, fullName: 'Juan Dela Cruz', email: 'juan@barangay.ph' }
-      },
-      {
-        id: 2,
-        title: 'Minor Vehicular Collision',
-        description: 'Motorcycle side-swiped parked tricycle. No major injuries reported.',
-        location: 'Main Highway corner Rizal St.',
-        status: 'IN_PROGRESS',
-        reportedAt: new Date(Date.now() - 3600000 * 12).toISOString(),
-        reporter: { id: 2, fullName: 'Maria Santos', email: 'maria@barangay.ph' }
-      },
-      {
-        id: 3,
-        title: 'Blocked Drainage Culvert',
-        description: 'Heavy rains caused water backflow due to fallen tree debris.',
-        location: 'Sitio Dos, Zone 4',
-        status: 'RESOLVED',
-        reportedAt: new Date(Date.now() - 3600000 * 36).toISOString(),
-        reporter: { id: 3, fullName: 'Pedro Penduko', email: 'pedro@barangay.ph' }
-      }
-    ];
+<div id="toast"></div>
 
-    const MOCK_AUDIT_LOGS = [
-      {
-        id: 10,
-        tableName: 'incidents',
-        action: 'UPDATE',
-        recordId: 2,
-        oldData: { id: 2, status: 'REPORTED', title: 'Minor Vehicular Collision' },
-        newData: { id: 2, status: 'IN_PROGRESS', title: 'Minor Vehicular Collision' },
-        changedAt: new Date(Date.now() - 3600000 * 5).toISOString()
-      },
-      {
-        id: 9,
-        tableName: 'incidents',
-        action: 'UPDATE',
-        recordId: 3,
-        oldData: { id: 3, status: 'IN_PROGRESS' },
-        newData: { id: 3, status: 'RESOLVED' },
-        changedAt: new Date(Date.now() - 3600000 * 18).toISOString()
-      }
-    ];
+<script src="qrcode.js"></script>
+<script src="announce-popup.js"></script>
+<script>
+(function(){'use strict';
+var token=null,role=null,uid=null,$=function(i){return document.getElementById(i)};
+function h(t,a,k){var e=document.createElement(t);a=a||{};Object.keys(a).forEach(function(n){if(n==='on')Object.keys(a.on).forEach(function(v){e.addEventListener(v,a.on[v])});else if(n==='text')e.textContent=a.text;else e.setAttribute(n,a[n])});(k||[]).forEach(function(c){e.appendChild(typeof c==='string'?document.createTextNode(c):c)});return e}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function say(m,ok){var t=$('toast');t.textContent=m;t.style.background=ok?'var(--ok)':'var(--bad)';t.style.display='block';setTimeout(function(){t.style.display='none'},3500)}
+function api(m,p,b){var o={method:m,headers:{'Content-Type':'application/json'}};if(token)o.headers.Authorization='Bearer '+token;if(b)o.body=JSON.stringify(b);
+ return fetch('/api'+p,o).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})})}
+function done(okMsg,again){return function(r){say(r.ok?okMsg:(r.d.error||'Error'),r.ok);if(r.ok&&again)again()}}
+function bcls(v){v=String(v);return /^(Claimed|Resolved|Paid|Active|Attended|Approved)/.test(v)?'b-ok':/^(Pending|Open|Unpaid|Registered|Upcoming)/.test(v)?'b-warn':/^(Processing|Ongoing|Ready)/.test(v)?'b-info':/^(Rejected|Cancelled|Banned|NoShow)/.test(v)?'b-bad':'b-mu'}
+function table(rows,cols,act){var t=h('table'),hr=h('tr');cols.forEach(function(c){hr.appendChild(h('th',{text:c[0]}))});if(act)hr.appendChild(h('th'));t.appendChild(hr);
+ rows.forEach(function(r){var tr=h('tr');cols.forEach(function(c){var v=c[1](r),td=h('td');if(c[0]==='Status'||c[0]==='Payment')td.appendChild(h('span',{class:'badge '+bcls(v),text:v}));else td.textContent=v;tr.appendChild(td)});if(act){var td=h('td');act(r).forEach(function(b){td.appendChild(b)});tr.appendChild(td)}t.appendChild(tr)});
+ if(!rows.length)t.appendChild(h('tr',{},[h('td',{text:'Nothing here yet.',class:'mu'})]));return h('div',{class:'tw'},[t])}
+function form(fields,label,fn){var f=h('form');fields.forEach(function(x){var i;if(x[2]==='select'){i=h('select',{name:x[0]});x[3].forEach(function(o){i.appendChild(h('option',{value:o[0],text:o[1]}))})}else if(x[2]==='textarea')i=h('textarea',{name:x[0],rows:'3'});else i=h('input',{name:x[0],type:x[2]||'text'});f.appendChild(h('div',{},[h('label',{text:x[1]}),i]))});
+ f.appendChild(h('button',{text:label}));f.addEventListener('submit',function(e){e.preventDefault();var d={};fields.forEach(function(x){d[x[0]]=f.elements[x[0]].value});fn(d,f)});return f}
+function card(t,k){return h('div',{class:'card'},[h('h3',{text:t})].concat(k))}
+function btn(t,fn,c){return h('button',{text:t,class:c||'alt',on:{click:fn}})}
+function opts(rows,v,l){return rows.map(function(r){return[r[v],l(r)]})}
+function nm(r){return r?r.firstName+' '+r.lastName:''}
+function date(v){return v?String(v).slice(0,10):''}
 
-    // ==========================================
-    // INITIALIZATION & EVENT LISTENERS
-    // ==========================================
-    window.addEventListener('DOMContentLoaded', () => {
-      lucide.createIcons();
-      checkApiHealth();
-      fetchIncidents();
-      fetchAuditLogs();
-      renderCertificates();
-      updateRbacCard();
-    });
+// LOGIN
+$('lf').addEventListener('submit',function(e){e.preventDefault();api('POST','/login',{email:$('em').value,password:$('pw').value}).then(function(r){
+ if(!r.ok){say(r.d.error||'Login failed');return}token=r.d.token;var p=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));role=p.role;uid=p.accountId;
+ $('login').classList.add('hide');$('app').classList.remove('hide');
+ var o=h('button',{text:'Log out',class:'alt',on:{click:function(){location.reload()}}}),adv=h('a',{href:'/console.html',text:'Advanced Console ',class:'mu',style:'margin-right:10px; font-weight:600;'});
+ $('who').textContent=$('em').value+' · '+role+' ';$('who').appendChild(adv);$('who').appendChild(o);nav();show('home');banner()})});
+var bannerTimer=null;
+function banner(){if(!bannerTimer)bannerTimer=setInterval(banner,60000); // new announcements pop up without a refresh
+ api('GET','/announcements').then(function(r){if(!r.ok)return;var a=r.d.filter(function(x){return x.priority==='Emergency'})[0];if(a){$('alert').style.display='block';$('alert').textContent='EMERGENCY: '+a.title+' - '+a.messageBody}
+  // pop-up for Important / Emergency announcements addressed to everyone (staff portal only pops the "Everyone" ones)
+  if(window.announcePopup)announcePopup({userKey:'staff'+uid,list:r.d,accept:function(x){return String(x.targetAudience||'All').toLowerCase()==='all'}})})}
 
-    // ==========================================
-    // API HEALTH CHECK & FALLBACK TOGGLE
-    // ==========================================
-    async function checkApiHealth() {
-      const badge = document.getElementById('connectionStatusBadge');
-      const ping = document.getElementById('statusPing');
-      const dot = document.getElementById('statusDot');
-      const text = document.getElementById('statusText');
+// NAVIGATION
+var MENU={Admin:['home','residents','documents','payments','blotters','announcements','reports','staff','fees','audit'],Staff:['home','residents','documents','payments','blotters','announcements','reports','staff'],Official:['home','documents','payments','blotters','announcements','reports','staff','audit']};
+var NAMES={home:'Dashboard',residents:'Resident Directory',documents:'Document Requests',payments:'Payments & Revenue',blotters:'Incident Blotter',announcements:'Announcements',reports:'Analytics & Reports',staff:'Staff Accounts',fees:'Fee Structure',audit:'Audit Logs'};
+function label(k){return k==='staff'&&role!=='Admin'?'My Account':NAMES[k]}
+function nav(){var n=$('nav');n.textContent='';MENU[role].forEach(function(k){n.appendChild(h('button',{text:label(k),'data-k':k,on:{click:function(){show(k)}}}))})}
+function show(k){Array.prototype.forEach.call($('nav').children,function(b){b.className=b.getAttribute('data-k')===k?'on':''});var v=$('view');v.textContent='';v.appendChild(h('h2',{text:label(k)}));VIEWS[k](v)}
 
-      try {
-        const response = await fetch(`${API_BASE_URL}/health`, { method: 'GET' });
-        if (response.ok) {
-          state.isApiConnected = true;
-          badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/30';
-          ping.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
-          dot.className = 'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
-          text.innerText = 'Connected: Localhost:5000 API';
-        } else {
-          throw new Error('API Health Check Failed');
-        }
-      } catch (err) {
-        state.isApiConnected = false;
-        badge.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-500/30';
-        ping.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75';
-        dot.className = 'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
-        text.innerText = 'Demo Mode (API Disconnected)';
-      }
-    }
+// SHARED
+function docActions(r,again){var b=[];var paid=r.payment&&r.payment.paymentStatus==='Paid';
+ function step(s){return function(){api('PATCH','/documents/'+r.requestId+'/process',{newStatus:s}).then(done('Updated to '+s,again))}}
+ if(r.status==='Pending')b.push(btn('Start Processing',step('Processing'),''),btn('Reject',step('Rejected'),'bad'));
+ if(r.status==='Processing')b.push(btn('Mark Ready',step('Ready'),''),btn('Reject',step('Rejected'),'bad'));
+ if(r.status==='Ready'&&!paid)b.push(btn('Record Payment',function(){var o=prompt('Official Receipt (OR) Number:','OR-');if(o)api('PATCH','/documents/'+r.requestId+'/payment',{orNumber:o}).then(done('Payment recorded',again))},''));
+ if(r.status==='Ready'&&paid)b.push(btn('Release Document',step('Claimed'),''));
+ if(r.status==='Ready'||r.status==='Claimed')b.push(btn('Print Certificate',function(){printDoc(r)}));return b}
 
-    // ==========================================
-    // FETCH INCIDENTS (GET http://localhost:5000/api/incidents)
-    // ==========================================
-    async function fetchIncidents() {
-      try {
-        if (state.isApiConnected) {
-          const res = await fetch(`${API_BASE_URL}/incidents`);
-          const json = await res.json();
-          if (json.success) {
-            state.incidents = json.data;
-          }
-        } else {
-          state.incidents = MOCK_INCIDENTS;
-        }
-      } catch (error) {
-        state.incidents = MOCK_INCIDENTS;
-        showToast('Using Fallback Incidents Data', 'info');
-      }
+function verifyUrl(code){return location.origin+'/verify.html?code='+encodeURIComponent(code)}
+function qrSvg(t){var q=qrcode(0,'M');q.addData(t);q.make();return q.createSvgTag({cellSize:4,margin:2,scalable:true})}
+function printDoc(r){var w=window.open('','_blank'),seal=esc(location.origin)+'/seal.png';w.document.write('<title>Official Barangay Certificate</title><body style="font-family:Georgia,serif;text-align:center;padding:60px;margin:0"><img src="'+seal+'" alt="" style="position:fixed;top:50%;left:50%;width:560px;height:560px;margin:-280px 0 0 -280px;opacity:.10;z-index:0;-webkit-print-color-adjust:exact;print-color-adjust:exact"><div style="position:relative;z-index:1"><img src="'+seal+'" alt="Bantay Barangay seal" style="width:96px;height:96px;display:block;margin:0 auto 8px"><p>Republic of the Philippines</p><h2>OFFICE OF THE BARANGAY CAPTAIN</h2><h1>'+esc(r.documentType)+'</h1><p>This is to certify that <b>'+esc(nm(r.resident))+'</b> is a bona fide resident of this barangay.</p><p>Purpose: '+esc(r.purpose)+'</p><div style="margin-top:40px;text-align:center">'+(r.verificationCode?'<div style="width:104px;height:104px;margin:0 auto">'+qrSvg(verifyUrl(r.verificationCode))+'</div><div style="font-size:10px">Scan to verify</div>':'')+'<p>Verification Code: <b>'+esc(r.verificationCode)+'</b><br>Verify at '+esc(location.origin)+'/verify.html</p></div></div>');w.document.close();var t0=Date.now();(function wait(){var ok=true,im=w.document.images;for(var i=0;i<im.length;i++)if(!im[i].complete)ok=false;if(ok||Date.now()-t0>4000){w.focus();w.print()}else setTimeout(wait,100)})()}
+function docTable(rows,again){return table(rows,[['#',function(r){return r.requestId}],['Resident',function(r){return nm(r.resident)}],['Document',function(r){return r.documentType}],['Status',function(r){return r.status}],['Payment',function(r){return r.payment?r.payment.paymentStatus+' (₱'+r.payment.amount+')':'-'}],['Code',function(r){return r.verificationCode||''}]],function(r){return docActions(r,again)})}
+function stats(v){api('GET','/stats').then(function(r){if(!r.ok)return;var g=h('div',{class:'stats'}),n={active_residents:'Active Residents',pending_documents:'Pending Clearances',open_blotters:'Open Blotter Cases',unpaid_payments:'Unpaid Fees',senior_citizens:'Senior Citizens'};
+ Object.keys(n).forEach(function(k){g.appendChild(h('div',{class:'stat'},[h('b',{text:r.d[k]}),n[k]]))});v.insertBefore(g,v.children[1]||null)})}
+function blotterTable(rows,again){return table(rows,[['#',function(r){return r.caseId}],['Date',function(r){return date(r.dateOfIncident)}],['Type',function(r){return r.incidentType}],['Complainant',function(r){return nm(r.complainant)}],['Against',function(r){return r.respondentName}],['Status',function(r){return r.status}]],function(r){return['Open','Ongoing','Resolved'].filter(function(s){return s!==r.status}).map(function(s){return btn('Set '+s,function(){api('PATCH','/blotters/'+r.caseId+'/status',{status:s}).then(done('Case '+s,again))})})})}
 
-      renderIncidentsTable();
-      renderDashboardFeed();
-      updateAnalyticsCounters();
-    }
+// VIEWS
+var VIEWS={
+ home:function(v){
+  // USER FRIENDLY WELCOME BANNER
+  var welcomeCard = h('div', {class: 'card welcome-banner'}, [
+    h('div', {style: 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap: 12px;'}, [
+      h('div', {}, [
+        h('h3', {text: 'Good day! Ready for today\'s barangay requests?', style: 'margin:0 0 4px; font-size:18px;'}),
+        h('p', {text: 'Use the quick action buttons below or select a section from the navigation menu.', class: 'mu', style: 'margin:0; font-size:13px;'})
+      ]),
+      h('div', {class: 'row'}, [
+        btn('New Document', function(){ show('documents'); }),
+        btn('File Blotter', function(){ show('blotters'); }, 'alt')
+      ])
+    ])
+  ]);
+  v.appendChild(welcomeCard);
+  stats(v);
 
-    // ==========================================
-    // FETCH AUDIT LOGS (GET http://localhost:5000/api/audit-logs)
-    // ==========================================
-    async function fetchAuditLogs() {
-      try {
-        if (state.isApiConnected) {
-          const res = await fetch(`${API_BASE_URL}/audit-logs`);
-          const json = await res.json();
-          if (json.success) {
-            state.auditLogs = json.data;
-          }
-        } else {
-          state.auditLogs = MOCK_AUDIT_LOGS;
-        }
-      } catch (error) {
-        state.auditLogs = MOCK_AUDIT_LOGS;
-      }
-
-      renderAuditLogs();
-      updateAnalyticsCounters();
-    }
-
-    // ==========================================
-    // SUBMIT INCIDENT REPORT (POST http://localhost:5000/api/incidents)
-    // ==========================================
-    async function handleReportSubmit(e) {
-      e.preventDefault();
-      const submitBtn = document.getElementById('submitReportBtn');
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Submitting...`;
-      lucide.createIcons();
-
-      const payload = {
-        reporterId: Number(document.getElementById('formReporterId').value),
-        title: document.getElementById('formTitle').value,
-        location: document.getElementById('formLocation').value,
-        description: document.getElementById('formDescription').value
-      };
-
-      try {
-        if (state.isApiConnected) {
-          const res = await fetch(`${API_BASE_URL}/incidents`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error || 'Failed to file incident');
-          showToast('Incident Report Created Successfully!', 'success');
-        } else {
-          // Mock Append
-          const newMock = {
-            id: state.incidents.length + 1,
-            ...payload,
-            status: 'REPORTED',
-            reportedAt: new Date().toISOString(),
-            reporter: { id: payload.reporterId, fullName: 'Current Resident User', email: 'user@barangay.ph' }
-          };
-          state.incidents.unshift(newMock);
-          showToast('Incident Submitted (Demo Mode)', 'success');
-        }
-
-        document.getElementById('incidentReportForm').reset();
-        document.getElementById('formReporterId').value = "1";
-        await fetchIncidents();
-        switchTab('incidents');
-
-      } catch (error) {
-        showToast(`Error: ${error.message}`, 'error');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Submit Incident Record`;
-        lucide.createIcons();
-      }
-    }
-
-    // ==========================================
-    // UPDATE INCIDENT STATUS (PATCH http://localhost:5000/api/incidents/:id/status)
-    // ==========================================
-    async function updateIncidentStatus(incidentId, newStatus) {
-      if (state.activeRole === 'Resident') {
-        showToast('RBAC Denial: Residents cannot change incident status.', 'error');
-        return;
-      }
-
-      try {
-        if (state.isApiConnected) {
-          const res = await fetch(`${API_BASE_URL}/incidents/${incidentId}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus, updatedBy: 1 })
-          });
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error || 'Status update failed');
-          showToast(`Incident #${incidentId} status updated to ${newStatus} via Stored Procedure!`, 'success');
-        } else {
-          // Mock update
-          const item = state.incidents.find(i => i.id === incidentId);
-          if (item) {
-            const oldStatus = item.status;
-            item.status = newStatus;
-            
-            // Push mock audit log
-            state.auditLogs.unshift({
-              id: state.auditLogs.length + 1,
-              tableName: 'incidents',
-              action: 'UPDATE',
-              recordId: incidentId,
-              oldData: { id: incidentId, status: oldStatus },
-              newData: { id: incidentId, status: newStatus },
-              changedAt: new Date().toISOString()
-            });
-          }
-          showToast(`Mock Status Updated to ${newStatus}`, 'success');
-        }
-
-        await fetchIncidents();
-        await fetchAuditLogs();
-
-      } catch (error) {
-        showToast(`Error: ${error.message}`, 'error');
-      }
-    }
-
-    // ==========================================
-    // RENDER FUNCTIONS
-    // ==========================================
-
-    function updateAnalyticsCounters() {
-      const total = state.incidents.length;
-      const reported = state.incidents.filter(i => i.status === 'REPORTED' || i.status === 'IN_PROGRESS').length;
-      const resolved = state.incidents.filter(i => i.status === 'RESOLVED').length;
-      const auditCount = state.auditLogs.length;
-
-      document.getElementById('statTotalIncidents').innerText = total;
-      document.getElementById('statReportedIncidents').innerText = reported;
-      document.getElementById('statResolvedIncidents').innerText = resolved;
-      document.getElementById('statAuditLogsCount').innerText = auditCount;
-    }
-
-    function renderDashboardFeed() {
-      const feed = document.getElementById('dashboardRecentFeed');
-      if (state.incidents.length === 0) {
-        feed.innerHTML = `<div class="p-4 text-center text-xs text-slate-500">No recent incidents logged.</div>`;
-        return;
-      }
-
-      feed.innerHTML = state.incidents.slice(0, 3).map(inc => `
-        <div class="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 flex items-start justify-between gap-3">
-          <div class="space-y-1">
-            <div class="flex items-center gap-2">
-              <span class="font-bold text-xs text-slate-200">#${inc.id} - ${escapeHtml(inc.title)}</span>
-              ${getStatusBadgeHtml(inc.status)}
-            </div>
-            <p class="text-xs text-slate-400 line-clamp-1">${escapeHtml(inc.description)}</p>
-            <div class="text-[11px] text-slate-500 flex items-center gap-3">
-              <span><i data-lucide="map-pin" class="w-3 h-3 inline text-slate-400"></i> ${escapeHtml(inc.location)}</span>
-              <span><i data-lucide="clock" class="w-3 h-3 inline text-slate-400"></i> ${new Date(inc.reportedAt).toLocaleTimeString()}</span>
-            </div>
-          </div>
-          <button onclick="switchTab('incidents')" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-[11px] font-semibold text-slate-300 rounded-lg shrink-0">
-            View
-          </button>
-        </div>
-      `).join('');
-      lucide.createIcons();
-    }
-
-    function renderIncidentsTable() {
-      const tbody = document.getElementById('incidentsTableBody');
-      const filter = document.getElementById('filterStatusSelect').value;
-
-      let filtered = state.incidents;
-      if (filter !== 'ALL') {
-        filtered = filtered.filter(i => i.status === filter);
-      }
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">No incident records found matching filter.</td></tr>`;
-        return;
-      }
-
-      const isStaffOrAdmin = state.activeRole === 'Admin' || state.activeRole === 'Staff';
-
-      tbody.innerHTML = filtered.map(inc => `
-        <tr class="hover:bg-slate-800/40 transition-colors">
-          <td class="px-4 py-3 font-mono text-slate-400">#${inc.id}</td>
-          <td class="px-4 py-3">
-            <div class="font-semibold text-slate-200">${escapeHtml(inc.title)}</div>
-            <div class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-              <i data-lucide="map-pin" class="w-3 h-3 text-brand-400"></i> ${escapeHtml(inc.location)}
-            </div>
-          </td>
-          <td class="px-4 py-3">
-            <div class="text-slate-300">${escapeHtml(inc.reporter?.fullName || 'Anonymous Resident')}</div>
-            <div class="text-[10px] text-slate-500">${escapeHtml(inc.reporter?.email || 'N/A')}</div>
-          </td>
-          <td class="px-4 py-3">${getStatusBadgeHtml(inc.status)}</td>
-          <td class="px-4 py-3 text-[11px] text-slate-400">${new Date(inc.reportedAt).toLocaleString()}</td>
-          <td class="px-4 py-3 text-right">
-            ${isStaffOrAdmin ? `
-              <div class="inline-flex items-center gap-1">
-                ${inc.status === 'REPORTED' ? `
-                  <button onclick="updateIncidentStatus(${inc.id}, 'IN_PROGRESS')" class="px-2 py-1 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-[11px] font-semibold rounded-lg ring-1 ring-amber-500/30">
-                    Dispatch
-                  </button>
-                ` : ''}
-                ${inc.status !== 'RESOLVED' ? `
-                  <button onclick="updateIncidentStatus(${inc.id}, 'RESOLVED')" class="px-2 py-1 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 text-[11px] font-semibold rounded-lg ring-1 ring-emerald-500/30">
-                    Resolve
-                  </button>
-                ` : '<span class="text-[11px] text-slate-500 italic">Locked</span>'}
-              </div>
-            ` : `<span class="text-[11px] text-slate-500 italic">Read-Only</span>`}
-          </td>
-        </tr>
-      `).join('');
-      lucide.createIcons();
-    }
-
-    function renderAuditLogs() {
-      const container = document.getElementById('auditLogsContainer');
-      if (state.auditLogs.length === 0) {
-        container.innerHTML = `<div class="bg-slate-900/80 p-8 text-center text-xs text-slate-500 rounded-2xl border border-slate-800">No audit trigger logs recorded yet.</div>`;
-        return;
-      }
-
-      container.innerHTML = state.auditLogs.map(log => `
-        <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800/80 space-y-2 font-mono text-xs">
-          <div class="flex items-center justify-between text-[11px]">
-            <div class="flex items-center gap-2">
-              <span class="px-2 py-0.5 rounded font-bold bg-cyan-500/10 text-cyan-400 ring-1 ring-cyan-500/30">${log.action}</span>
-              <span class="text-slate-300">Table: <strong class="text-brand-400">${log.tableName}</strong></span>
-              <span class="text-slate-400">Record ID: #${log.recordId}</span>
-            </div>
-            <span class="text-slate-500">${new Date(log.changedAt).toLocaleString()}</span>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1 text-[11px]">
-            ${log.oldData ? `
-              <div class="p-2 bg-slate-950 rounded-lg border border-slate-800 overflow-x-auto">
-                <span class="text-rose-400 font-bold">OLD DATA DIFF:</span>
-                <pre class="text-slate-400 mt-1">${JSON.stringify(log.oldData, null, 2)}</pre>
-              </div>
-            ` : ''}
-            ${log.newData ? `
-              <div class="p-2 bg-slate-950 rounded-lg border border-slate-800 overflow-x-auto">
-                <span class="text-emerald-400 font-bold">NEW DATA DIFF:</span>
-                <pre class="text-slate-300 mt-1">${JSON.stringify(log.newData, null, 2)}</pre>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-      `).join('');
-    }
-
-    function renderCertificates() {
-      const grid = document.getElementById('certificatesGrid');
-      grid.innerHTML = state.certificates.map(c => `
-        <div class="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-2 text-xs">
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-slate-200">${escapeHtml(c.type)}</span>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${c.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/30' : 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/30'}">${c.status}</span>
-          </div>
-          <p class="text-slate-400">Resident: <strong class="text-slate-200">${escapeHtml(c.residentName)}</strong></p>
-          <p class="text-slate-400">Purpose: ${escapeHtml(c.purpose)}</p>
-          <div class="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Fee: ${c.fee}</span>
-            <span>Date: ${c.date}</span>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    // ==========================================
-    // UI HELPER UTILITIES
-    // ==========================================
-
-    function getStatusBadgeHtml(status) {
-      if (status === 'REPORTED') {
-        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-400 ring-1 ring-inset ring-amber-500/30"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> REPORTED</span>`;
-      } else if (status === 'IN_PROGRESS') {
-        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-500/10 text-cyan-400 ring-1 ring-inset ring-cyan-500/30"><span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span> IN_PROGRESS</span>`;
-      } else {
-        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/30"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> RESOLVED</span>`;
-      }
-    }
-
-    function switchTab(tabId) {
-      const views = ['dashboard', 'report', 'incidents', 'certificates', 'audit', 'architecture'];
-      views.forEach(v => {
-        const el = document.getElementById(`view-${v}`);
-        const btn = document.getElementById(`tab-${v}`);
-        if (v === tabId) {
-          el.classList.remove('hidden');
-          btn.className = 'tab-btn px-3.5 py-2 rounded-lg flex items-center gap-2 transition-all bg-brand-500/10 text-brand-400 ring-1 ring-brand-500/30 font-semibold';
-        } else {
-          el.classList.add('hidden');
-          btn.className = 'tab-btn px-3.5 py-2 rounded-lg flex items-center gap-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all font-medium';
-        }
-      });
-      lucide.createIcons();
-    }
-
-    function handleRoleChange() {
-      state.activeRole = document.getElementById('userRoleSelect').value;
-      updateRbacCard();
-      renderIncidentsTable();
-      showToast(`Switched Role View to: ${state.activeRole}`, 'info');
-    }
-
-    function updateRbacCard() {
-      const card = document.getElementById('rbacPrivilegeCard');
-      const role = state.activeRole;
-
-      if (role === 'Admin') {
-        card.innerHTML = `
-          <div class="text-xs font-bold text-slate-200 flex items-center gap-1.5"><i data-lucide="shield" class="w-4 h-4 text-brand-400"></i> Admin Access Level</div>
-          <p class="text-[11px] text-slate-400">Full read/write privileges. Can invoke stored procedures, re-assign responders, and inspect backend audit logs.</p>
-        `;
-      } else if (role === 'Staff') {
-        card.innerHTML = `
-          <div class="text-xs font-bold text-slate-200 flex items-center gap-1.5"><i data-lucide="user-check" class="w-4 h-4 text-cyan-400"></i> Staff / Responder Access</div>
-          <p class="text-[11px] text-slate-400">Can view incidents, update operational status, and process clearance requests.</p>
-        `;
-      } else {
-        card.innerHTML = `
-          <div class="text-xs font-bold text-slate-200 flex items-center gap-1.5"><i data-lucide="user" class="w-4 h-4 text-amber-400"></i> Resident Access Level</div>
-          <p class="text-[11px] text-slate-400">Restricted access. Can submit new incident reports and request clearances. Status updating is disabled.</p>
-        `;
-      }
-      lucide.createIcons();
-    }
-
-    function filterIncidentsTable() {
-      renderIncidentsTable();
-    }
-
-    function openCertificateModal() {
-      document.getElementById('certificateModal').classList.remove('hidden');
-    }
-
-    function closeCertificateModal() {
-      document.getElementById('certificateModal').classList.add('hidden');
-    }
-
-    function handleCertificateSubmit(e) {
-      e.preventDefault();
-      const residentId = document.getElementById('certResidentId').value;
-      const typeSelect = document.getElementById('certTypeId');
-      const typeText = typeSelect.options[typeSelect.selectedIndex].text;
-      const purpose = document.getElementById('certPurpose').value;
-
-      state.certificates.unshift({
-        id: Date.now(),
-        residentName: `Resident #${residentId}`,
-        type: typeText.split('(')[0].trim(),
-        purpose: purpose,
-        status: 'PENDING',
-        fee: typeText.includes('FREE') ? 'FREE' : '₱50.00',
-        date: new Date().toISOString().split('T')[0]
-      });
-
-      renderCertificates();
-      closeCertificateModal();
-      showToast('Barangay Clearance Request Submitted!', 'success');
-    }
-
-    function showToast(message, type = 'info') {
-      const container = document.getElementById('toastContainer');
-      const toast = document.createElement('div');
-      
-      let borderClass = 'border-slate-700 text-slate-200';
-      let icon = 'info';
-      if (type === 'success') {
-        borderClass = 'border-emerald-500/50 text-emerald-300 bg-slate-900/95';
-        icon = 'check-circle';
-      } else if (type === 'error') {
-        borderClass = 'border-rose-500/50 text-rose-300 bg-slate-900/95';
-        icon = 'alert-octagon';
-      }
-
-      toast.className = `p-3.5 rounded-xl border shadow-2xl flex items-center gap-2.5 text-xs font-medium toast-slide-in pointer-events-auto ${borderClass}`;
-      toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 shrink-0"></i> <span>${escapeHtml(message)}</span>`;
-      
-      container.appendChild(toast);
-      lucide.createIcons();
-
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(100%)';
-        toast.style.transition = 'all 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
-      }, 4000);
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-    }
-  </script>
+  if(role==='Official'){
+    var c1=card('Business Permits Pending Approval',[]),c2=card('Active Incident Blotters',[]);v.appendChild(c1);v.appendChild(c2);
+    api('GET','/permits').then(function(r){c1.appendChild(table((r.d||[]).filter(function(p){return p.status==='Pending'}),[['Business',function(p){return p.businessName}],['Owner',function(p){return nm(p.resident)}],['Applied',function(p){return date(p.applicationDate)}]],function(p){return['Approved','Rejected'].map(function(s){return btn(s,function(){api('PATCH','/permits/'+p.permitId+'/status',{status:s}).then(done('Permit '+s,function(){show('home')}))},s==='Rejected'?'bad':'')})}))});
+    api('GET','/blotters').then(function(r){c2.appendChild(blotterTable((r.d||[]).filter(function(b){return b.status!=='Resolved'}),function(){show('home')}))});return
+  }
+  var c=card('Active Document Processing Queue',[]);v.appendChild(c);api('GET','/documents').then(function(r){c.appendChild(docTable((r.d||[]).filter(function(d){return d.status!=='Claimed'&&d.status!=='Rejected'}),function(){show('home')}))})
+ },
+ residents:function(v){var list=card('Registered Barangay Residents',[]);
+  api('GET','/households').then(function(h1){var hh=h1.d||[];
+   v.appendChild(card('Add Household Record',[form([['addressDetails','House No. & Street'],['purokZone','Purok / Zone']],'Register Household',function(d){api('POST','/households',d).then(done('Household added',function(){show('residents')}))})]));
+   v.appendChild(card('Add Resident Record',[form([['householdId','Household Address','select',opts(hh,'householdId',function(x){return x.addressDetails+' ('+x.purokZone+')'})],['firstName','First Name'],['lastName','Surname'],['birthDate','Birth Date','date'],['gender','Gender','select',[['Male','Male'],['Female','Female'],['Other','Other']]],['civilStatus','Civil Status','select',[['Single','Single'],['Married','Married'],['Widowed','Widowed']]],['contactNumber','Mobile No.']],'Register Resident',function(d){api('POST','/residents',d).then(done('Resident added',function(){show('residents')}))})]));
+   v.appendChild(list);api('GET','/residents').then(function(r){list.appendChild(table(r.d||[],[['#',function(x){return x.residentId}],['Name',nm],['Birth Date',function(x){return date(x.birthDate)}],['Household Address',function(x){return x.household?x.household.addressDetails+', '+x.household.purokZone:''}],['Mobile No.',function(x){return x.contactNumber||''}],['Status',function(x){return x.recordStatus}]]))})})
+ },
+ documents:function(v){api('GET','/residents').then(function(rs){api('GET','/fees').then(function(fs){
+   v.appendChild(card('Create New Document Request',[form([['residentId','Select Resident','select',opts(rs.d||[],'residentId',nm)],['documentType','Document Type','select',opts(fs.d||[],'documentType',function(x){return x.documentType+' (₱'+x.fee+')'})],['purpose','Request Purpose']],'Submit Request',function(d){api('POST','/documents',d).then(done('Request created',function(){show('documents')}))})]));
+   var c=card('All Clearance & Certificate Requests',[]);v.appendChild(c);api('GET','/documents').then(function(r){c.appendChild(docTable(r.d||[],function(){show('documents')}))})})})
+ },
+ payments:function(v){var c=card('Payment Transactions History',[]);v.appendChild(c);api('GET','/payments').then(function(r){var rows=r.d||[],tot=rows.filter(function(p){return p.paymentStatus==='Paid'}).reduce(function(a,p){return a+Number(p.amount)},0);
+  c.appendChild(h('p',{text:'Total Revenue Collected: ₱'+tot.toLocaleString()+' · Payments recorded upon settlement at the Barangay Treasury.', class:'mu'}));
+  c.appendChild(table(rows,[['#',function(p){return p.paymentId}],['Transaction',function(p){return p.requestId?'Document Request #'+p.requestId:'Permit Application #'+p.permitId}],['Amount',function(p){return '₱'+p.amount}],['Status',function(p){return p.paymentStatus}],['OR Number',function(p){return p.orNumber||''}],['Payment Method',function(p){return p.paymentMethod||''}],['Paid Date',function(p){return date(p.datePaid)}]],
+   function(p){return p.paymentStatus==='Unpaid'&&p.requestId?[btn('Collect Fee',function(){var o=prompt('Official Receipt (OR) Number:','OR-');if(!o)return;var m=prompt('Method (Cash, GCash, Maya):','Cash');api('PATCH','/documents/'+p.requestId+'/payment',{orNumber:o,method:m||'Cash'}).then(done('Payment recorded',function(){show('payments')}))},'')]:[]}))})
+ },
+ blotters:function(v){api('GET','/residents').then(function(rs){api('GET','/staff').then(function(st){var me=(st.d||[]).filter(function(a){return a.accountId===uid&&a.staffProfile})[0];
+   v.appendChild(card('File Official Incident Blotter',[form([['complainantResidentId','Complainant','select',opts(rs.d||[],'residentId',nm)],['respondentName','Respondent / Person Involved'],['incidentType','Incident Category'],['dateOfIncident','Date of Incident','date'],['description','Incident Narrative']],'File Incident Case',function(d){d.recordedByStaffId=me?me.staffProfile.staffId:null;api('POST','/blotters',d).then(done('Blotter case filed',function(){show('blotters')}))})]));
+   var c=card('Barangay Incident Cases',[]);v.appendChild(c);api('GET','/blotters').then(function(r){c.appendChild(blotterTable(r.d||[],function(){show('blotters')}))})})})
+ },
+ reports:function(v){function bars(t,rows,k,val){var m={};rows.forEach(function(r){m[r[k]]=(m[r[k]]||0)+Number(r[val])});var ks=Object.keys(m),mx=Math.max.apply(null,ks.map(function(x){return m[x]}).concat([1]));
+   var c=card(t,[]);ks.forEach(function(x){c.appendChild(h('div',{class:'bar'},[h('span',{text:x}),h('i',{style:'width:'+Math.round(m[x]/mx*60)+'%'}),String(m[x])]))});if(!ks.length)c.appendChild(h('p',{text:'No data recorded.',class:'mu'}));v.appendChild(c)}
+  [['population','Resident Distribution per Purok','purok','residents'],['incidents','Reported Incidents by Type','incident_type','total'],['requests','Clearance Requests by Document Type','document_type','total'],['revenue','Monthly Barangay Collections (₱)','period','collected']].forEach(function(x){api('GET','/reports/'+x[0]).then(function(r){bars(x[1],r.d||[],x[2],x[3])})})
+ },
+ staff:function(v){
+  // Staff / Official: only their OWN account (the server returns just that row). Only an Admin adds or removes staff.
+  if(role!=='Admin'){
+   var me=card('My Account',[]);v.appendChild(me);
+   api('GET','/staff').then(function(r){var a=(r.d||[])[0];if(!a){me.appendChild(h('p',{text:'Account not found.',class:'mu'}));return}
+    var p=a.staffProfile||{};
+    me.appendChild(h('p',{text:a.email+' · '+a.systemRole+' · '+a.accountStatus,class:'mu'}));
+    var f=form([['firstName','First Name'],['lastName','Surname'],['positionTitle','Position / Title']],'Save My Details',function(d){api('PUT','/staff/'+a.accountId,d).then(done('Details saved',function(){show('staff')}))});
+    f.elements.firstName.value=p.firstName||'';f.elements.lastName.value=p.lastName||'';f.elements.positionTitle.value=p.positionTitle||'';
+    me.appendChild(f);
+    me.appendChild(h('p',{text:'Only an Admin can add or remove staff accounts.',class:'mu'}))});
+   return}
+  v.appendChild(card('Create Staff Account',[form([['email','Email Address'],['password','Password','password'],['systemRole','System Role','select',[['Staff','Staff'],['Official','Official'],['Admin','Admin']]],['firstName','First Name'],['lastName','Surname'],['positionTitle','Position / Title']],'Create Account',function(d){api('POST','/staff',d).then(done('Staff account created',function(){show('staff')}))})]));
+  var c=card('Staff & Official Accounts',[]);v.appendChild(c);api('GET','/staff').then(function(r){c.appendChild(table(r.d||[],[['Email',function(a){return a.email}],['Role',function(a){return a.systemRole}],['Name',function(a){return nm(a.staffProfile)}],['Position',function(a){return a.staffProfile?a.staffProfile.positionTitle:''}],['Status',function(a){return a.accountStatus}]],function(a){
+    if(a.accountStatus!=='Active')return[btn('Reactivate',function(){api('PUT','/staff/'+a.accountId,{accountStatus:'Active'}).then(done('Account reactivated',function(){show('staff')}))},'')];
+    if(a.accountId===uid)return[];
+    return[btn('Remove',function(){if(confirm('Remove '+(nm(a.staffProfile)||a.email)+'? They will no longer be able to log in.'))api('DELETE','/staff/'+a.accountId).then(done('Staff account removed',function(){show('staff')}))},'bad')]}))})
+ },
+ announcements:function(v){
+  // Everyone: all accounts (staff + residents) | All residents | one purok. Staff / Official can edit or delete only their own posts.
+  var audLabel=function(a){return a==='All'?'Everyone (all accounts)':a==='Residents'?'All residents':a};
+  api('GET','/households').then(function(hh){
+   var seen={};(hh.d||[]).forEach(function(x){if(x.purokZone)seen[x.purokZone]=1});
+   var aud=[['All','Everyone - all accounts (staff and residents)'],['Residents','All residents']].concat(Object.keys(seen).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true})}).map(function(p){return[p,'Only '+p]}));
+   v.appendChild(card('Post Announcement',[form([['title','Title'],['messageBody','Message','textarea'],['targetAudience','Who should see it?','select',aud],['priority','Priority','select',[['Normal','Normal'],['Important','Important'],['Emergency','Emergency (red banner for 3 days)']]]],'Post Announcement',function(d){api('POST','/announcements',d).then(done('Announcement posted',function(){show('announcements')}))})]));
+   var c=card('Announcements',[]);v.appendChild(c);
+   api('GET','/announcements').then(function(r){c.appendChild(table(r.d||[],[['Date',function(a){return date(a.datePosted)}],['Title',function(a){return a.title}],['Message',function(a){return a.messageBody}],['For',function(a){return audLabel(a.targetAudience)}],['Priority',function(a){return a.priority}],['Posted by',function(a){return a.postedByName||''}]],function(a){
+     if(!a.canManage)return[];
+     return[btn('Edit',function(){var t=prompt('Title:',a.title);if(t===null)return;var m=prompt('Message:',a.messageBody);if(m===null)return;api('PUT','/announcements/'+a.announcementId,{title:t,messageBody:m}).then(done('Announcement updated',function(){show('announcements')}))}),
+            btn('Delete',function(){if(confirm('Delete this announcement?'))api('DELETE','/announcements/'+a.announcementId).then(done('Announcement deleted',function(){show('announcements')}))},'bad')]}))})})
+ },
+ fees:function(v){var c=card('Document Fee Configuration',[]);v.appendChild(c);api('GET','/fees').then(function(r){c.appendChild(table(r.d||[],[['Document Type',function(f){return f.documentType}]],function(f){var i=h('input',{type:'number',value:f.fee,style:'width:110px'});return[i,btn('Update Fee',function(){api('PUT','/fees/'+encodeURIComponent(f.documentType),{fee:i.value}).then(done('Fee updated'))},'')]
+  }))})
+ },
+ audit:function(v){var c=card('System Audit Logs (Trigger System)',[]);v.appendChild(c);api('GET','/audit-logs').then(function(r){c.appendChild(table(r.d||[],[['Timestamp',function(a){return String(a.timestamp).replace('T',' ').slice(0,19)}],['Account ID',function(a){return a.accountId==null?'-':a.accountId}],['Action',function(a){return a.actionPerformed}],['Affected Table',function(a){return a.tableAffected}]]))})}
+};
+})();
+</script>
 </body>
 </html>

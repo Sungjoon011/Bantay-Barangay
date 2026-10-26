@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bantay-Barangay | Document Verification</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/png" href="/seal.png">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <b>Bantay-Barangay</b>
+  </div>
+  <span class="mu">Public Verification Service</span>
+</header>
+
+<main class="narrow stack">
+  <div class="card" style="margin-top: 24px;">
+    <img class="seal-lg" src="/seal.png" alt="Bantay Barangay seal">
+    <h3 style="text-align: center;">Verify Barangay Document</h3>
+    <p class="mu">Enter the verification code printed at the bottom of the clearance or certificate.</p>
+    <input id="c" placeholder="Verification Code (e.g., BB-123456)">
+    <button id="b" style="margin-top: 10px;">Check Authenticity</button>
+    <p id="r" style="font-weight: 600; margin-top: 16px;"></p>
+  </div>
+</main>
+
+<script>
+function check() {
+  var c = document.getElementById('c').value.trim(), r = document.getElementById('r');
+  if (!c) { r.style.color = 'var(--bad)'; r.textContent = 'Please enter a valid verification code.'; return; }
+  fetch('/api/verify/' + encodeURIComponent(c))
+    .then(function (x) { return x.json(); })
+    .then(function (d) {
+      r.style.color = d.valid ? 'var(--ok)' : 'var(--bad)';
+      r.textContent = d.valid 
+        ? 'VALID: ' + d.documentType + ' issued to ' + d.issuedTo
+        : 'NOT VALID: No released document was found matching this code.';
+    })
+    .catch(function () {
+      r.style.color = 'var(--bad)';
+      r.textContent = 'Unable to reach verification service. Please try again.';
+    });
+}
+document.getElementById('b').onclick = check;
+// opened from the QR code on a certificate: /verify.html?code=BB-123456  ->  fill it in and check right away
+var fromQr = new URLSearchParams(location.search).get('code');
+if (fromQr) { document.getElementById('c').value = fromQr; check(); }
+</script>
+</body>
+</html>

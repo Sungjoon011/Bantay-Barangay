@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bantay-Barangay | Staff Console</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/png" href="/seal.png">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <b>Bantay-Barangay Console</b>
+  </div>
+  <div id="who" class="mu"></div>
+</header>
+
+<main>
+  <!-- LOGIN -->
+  <section id="loginBox" class="card" style="max-width: 420px; margin: 60px auto;">
+    <img class="seal-lg" src="/seal.png" alt="Bantay Barangay seal">
+    <h2 style="margin-top:0; font-size: 20px; text-align: center;">Staff Sign In</h2>
+    <p class="mu" style="margin-bottom: 20px; text-align: center;">Access the Barangay Administrative Management Console</p>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div>
+        <label>Email</label>
+        <input id="email" placeholder="email@barangay.gov.ph" value="admin2@barangay.com" style="width: 100%;">
+      </div>
+      <div>
+        <label>Password</label>
+        <input id="password" type="password" placeholder="••••••••" style="width: 100%;">
+      </div>
+      <button id="loginBtn" style="padding: 10px; margin-top: 8px;">Sign In to Console</button>
+    </div>
+    <p id="loginMsg" class="err" style="margin-bottom: 0; margin-top: 10px; font-weight: 600;"></p>
+  </section>
+
+  <!-- APP -->
+  <section id="appBox" class="hide">
+    <div id="statsBox" class="card hide">
+      <div class="row" style="justify-content: space-between;">
+        <h3 style="margin: 0;">Barangay Dashboard Overview</h3>
+        <button class="alt" id="statsBtn">Refresh Stats</button>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="tabs" id="tabs"></div>
+
+    <div id="mainLayout" class="grid-layout">
+      <!-- TABLE CARD -->
+      <div class="card" style="margin-bottom: 0;">
+        <div class="row" style="justify-content:space-between">
+          <b id="resTitle" style="font-size: 16px;"></b>
+          <div class="row">
+            <input id="search" placeholder="Search record..." class="hide" style="width: 200px;">
+            <button class="alt" id="refreshBtn">Refresh List</button>
+          </div>
+        </div>
+        <div class="tw" style="margin-top:12px"><table id="tbl"></table></div>
+        <p class="mu" id="count" style="margin-bottom: 0; font-size: 12px;"></p>
+      </div>
+
+      <!-- DYNAMIC RESIDENT PROFILE PANEL -->
+      <div id="profilePanel" class="profile-card hide">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+          <div style="display: flex; gap: 14px; align-items: center;">
+            <div id="profAvatar" class="avatar-box">M</div>
+            <div>
+              <h3 id="profName" style="margin: 0; font-size: 18px;">Maria Santos</h3>
+              <span id="profStatus" class="badge b-ok">Active Resident</span>
+            </div>
+          </div>
+          <button class="alt" id="closeProfBtn" style="padding: 4px 8px; font-size: 12px;">✕</button>
+        </div>
+        <hr style="border: 0; border-top: 1px solid var(--ln); margin: 12px 0;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+          <div><b class="mu" style="display: block; font-size: 11px;">RESIDENT ID</b><span id="profId">-</span></div>
+          <div><b class="mu" style="display: block; font-size: 11px;">GENDER / CIVIL STATUS</b><span id="profGender">-</span></div>
+          <div><b class="mu" style="display: block; font-size: 11px;">BIRTH DATE</b><span id="profDob">-</span></div>
+          <div><b class="mu" style="display: block; font-size: 11px;">CONTACT NO.</b><span id="profContact">-</span></div>
+          <div style="grid-column: span 2;"><b class="mu" style="display: block; font-size: 11px;">HOUSEHOLD ADDRESS</b><span id="profAddress">-</span></div>
+        </div>
+        <hr style="border: 0; border-top: 1px solid var(--ln); margin: 12px 0;">
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="quickCertBtn" style="font-size: 12px; padding: 6px 12px;">Issue Clearance</button>
+          <button id="quickBlotterBtn" class="alt" style="font-size: 12px; padding: 6px 12px;">File Blotter</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="editor" style="margin-top: 20px;">
+      <div class="row" style="margin-bottom:12px">
+        <span>Selected ID:</span>
+        <input id="selId" size="8" placeholder="None" readonly style="font-weight: 600; text-align: center;">
+        <button id="createBtn">Create (POST)</button>
+        <button id="updateBtn" class="alt">Update (PUT)</button>
+        <button id="deleteBtn" class="bad">Delete / Archive</button>
+        <span id="extras" class="row"></span>
+      </div>
+      <textarea id="body" spellcheck="false" placeholder="JSON Record Payload"></textarea>
+      <p class="mu" id="hint" style="margin-bottom:0; font-size: 12px; margin-top: 6px;"></p>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between; margin-bottom: 8px;">
+        <b style="font-size: 14px;">API Diagnostics Log</b>
+        <button class="alt" id="clearLog">Clear Log</button>
+      </div>
+      <pre id="log">Console ready.</pre>
+    </div>
+  </section>
+</main>
+
+<!-- Dynamic Modal Overlay -->
+<div id="modalContainer" class="modal-overlay hide">
+  <div class="modal-card">
+    <h3 id="modalTitle">Action Required</h3>
+    <div id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="alt" id="modalCancel">Cancel</button>
+      <button id="modalSubmit">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print Container -->
+<div id="printSection" class="hide"></div>
+
+<script src="qrcode.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var token = null, role = null, current = null, selectedResidentData = null;
+
+  var RES = {
+    residents:     { label:'Residents', id:'residentId', create:true, update:true, del:true, search:true,
+                     tpl:{ householdId:1, firstName:'Maria', lastName:'Santos', birthDate:'2000-05-15', gender:'Female', civilStatus:'Single', contactNumber:'09123456789' },
+                     hint:'Every resident has a unique ID (residentCode, e.g. BB-000012). The same name + birth date cannot be added twice. Archive = marks the resident as Moved. Status values: Active, Moved, Deceased.' },
+    households:    { label:'Households', id:'householdId', create:true, update:true,
+                     tpl:{ addressDetails:'123 Rizal St.', purokZone:'Purok 1' } },
+    documents:     { label:'Documents', id:'requestId', create:true, update:true,
+                     tpl:{ residentId:1, documentType:'Barangay Clearance', purpose:'Employment' },
+                     hint:'Use Process to move the workflow (stored procedure) and Pay to record the payment.',
+                     extra:[ { label:'Process…', run:processDocModal }, { label:'Pay…', run:payDocModal }, { label:'Print Certificate', run:printCertificate } ] },
+    blotters:      { label:'Blotters', id:'caseId', create:true, update:true,
+                     tpl:{ dateOfIncident:'2026-10-18', incidentType:'Noise Complaint', complainantResidentId:1, respondentName:'Pedro Reyes', description:'Loud karaoke past 10PM', recordedByStaffId:1 },
+                     hint:'Staff only see Standard cases; Admin and Official see all.',
+                     extra:[ { label:'Add party…', run:addPartyModal }, { label:'Case history', run:function () { var id = needId(); if (id) api('GET', '/blotters/' + id + '/history'); } } ] },
+    programs:      { label:'Programs', id:'programId', create:true,
+                     tpl:{ createdByStaffId:1, title:'Feeding Program', description:'Monthly feeding', venue:'Barangay Hall', programDate:ymd(7) },
+                     extra:[ { label:'Register resident…', run:registerResidentModal }, { label:'Set attendance…', run:setAttendanceModal } ] },
+    appointments:  { label:'Appointments', id:'appointmentId', create:true, update:true,
+                     tpl:{ residentId:1, purpose:'Meet the Captain', scheduledDate:ymd(1), scheduledTime:'09:00' },
+                     hint:'Status values: Upcoming, Completed, Cancelled, NoShow.' },
+    permits:       { label:'Permits', id:'permitId', create:true, update:true,
+                     tpl:{ residentId:1, businessName:'Sari-sari Store', businessType:'Retail', applicationDate:ymd(0) },
+                     extra:[ { label:'Set status…', run:permitStatusModal } ] },
+    payments:      { label:'Payments', id:'paymentId', hint:'Read only. Payments are created by the stored procedures.' },
+    announcements: { label:'Announcements', id:'announcementId', create:true, update:true, del:true,
+                     tpl:{ title:'Clean-up drive', messageBody:'Saturday 7AM at the plaza.', targetAudience:'All', priority:'Normal' },
+                     extra:[ { label:'Post announcement…', run:postAnnouncementModal } ],
+                     hint:'Use "Post announcement…" to publish. Audience = Everyone (all accounts), All residents, or one purok. Priority "Emergency" also shows a red banner for 3 days. Admin can edit/delete any announcement; Staff and Official only their own.' },
+    staff:         { label:'Staff', id:'accountId', create:true, update:true, del:true,
+                     tpl:{ email:'staff1@barangay.com', password:'staff123', systemRole:'Staff', firstName:'Ana', lastName:'Lim', positionTitle:'Clerk' },
+                     hint:'Admin: Create adds a staff account, Remove makes the selected account Inactive (cannot log in), Update with {"accountStatus":"Active"} brings it back. Staff / Official only see and edit their own record. Password hashes are never returned.' },
+    'audit-logs':  { label:'Audit log', id:'logId', hint:'Written by database triggers. Admin and Official only.' },
+    'reports/registry':   { label:'Report: Registry', id:'purok', hint:'Registered residents per purok: Active vs Moved / Deceased, and how many already have an online account. Last row = whole barangay.' },
+    'reports/duplicates': { label:'Report: Duplicates', id:'residentCodes', hint:'Residents entered more than once (same name + birth date). Empty = no duplicates. Fix a copy by archiving it or correcting its details.' },
+    'reports/population': { label:'Report: Population', id:'purok', hint:'Residents, seniors and minors per purok.' },
+    'reports/incidents':  { label:'Report: Incidents', id:'period', hint:'Blotter cases per month and type.' },
+    'reports/requests':   { label:'Report: Requests', id:'document_type', hint:'Document requests per type and status.' },
+    'reports/revenue':    { label:'Report: Revenue', id:'period', hint:'Fees collected per month.' },
+    fees:          { label:'Fees', id:'documentType', update:true, tpl:{ fee:50 }, hint:'Admin only. A trigger copies the fee into each new payment.' },
+    directory:     { label:'Directory (view)', id:'residentId', hint:'Read from the vw_resident_directory database view.' }
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  // real calendar date in the Philippines, n days from today (the sample JSON bodies use this so they are never in the past)
+  function ymd(n) { return new Date(Date.now() + n * 864e5).toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }); }
+
+  function api(method, path, body) {
+    var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+    if (token) opts.headers.Authorization = 'Bearer ' + token;
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    return fetch('/api' + path, opts).then(function (r) {
+      return r.text().then(function (t) {
+        var data; try { data = JSON.parse(t); } catch (e) { data = t; }
+        show(method + ' /api' + path + '  →  ' + r.status + (r.ok ? ' OK' : ' ERROR') , data, r.ok);
+        return { ok: r.ok, status: r.status, data: data };
+      });
+    });
+  }
+
+  function show(title, data, ok) {
+    var log = $('log');
+    log.textContent = title + '\n\n' + (typeof data === 'string' ? data : JSON.stringify(data, null, 2));
+    log.className = ok ? 'okc' : 'err';
+    log.style.color = ok ? '#38bdf8' : '#f87171';
+  }
+
+  // LOGIN
+  $('loginBtn').onclick = function () {
+    $('loginMsg').textContent = '';
+    api('POST', '/login', { email: $('email').value, password: $('password').value }).then(function (r) {
+      if (!r.ok || !r.data.token) { $('loginMsg').textContent = (r.data && r.data.error) || 'Login failed'; return; }
+      token = r.data.token;
+      try { role = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role; } catch (e) { role = '?'; }
+      $('who').innerHTML = '<span>' + $('email').value + '</span> <span style="background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:4px; font-weight:600;">' + role + '</span>';
+      var out = document.createElement('button'); out.className = 'alt'; out.style.padding = '4px 10px'; out.style.fontSize = '12px'; out.textContent = 'Logout';
+      out.onclick = function () { token = null; location.reload(); };
+      $('who').appendChild(out);
+      $('loginBox').classList.add('hide'); $('appBox').classList.remove('hide');
+      buildTabs(); loadStats(); openRes(firstTab());
+    });
+  };
+  $('password').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('loginBtn').click(); });
+
+  // DASHBOARD
+  function loadStats() {
+    api('GET', '/stats').then(function (r) {
+      if (!r.ok) return;
+      $('statsBox').classList.remove('hide');
+      var names = { active_residents:'Active Residents', pending_documents:'Pending Documents', open_blotters:'Open Blotter Cases', unpaid_payments:'Unpaid Payments', senior_citizens:'Senior Citizens' };
+      var box = $('stats'); box.textContent = '';
+      Object.keys(names).forEach(function (k) {
+        var d = document.createElement('div'); d.className = 'stat';
+        var b = document.createElement('b'); b.textContent = r.data[k] !== undefined ? r.data[k] : '0';
+        var span = document.createElement('span'); span.textContent = names[k];
+        d.appendChild(b); d.appendChild(span); box.appendChild(d);
+      });
+      // registry totals: everyone on record, and how many are no longer active
+      fetch('/api/reports/registry', { headers: { Authorization: 'Bearer ' + token } }).then(function (x) { return x.json(); }).then(function (rows) {
+        var all = Array.isArray(rows) && rows.filter(function (x) { return x.purok === 'ALL PUROKS'; })[0];
+        if (!all) return;
+        [['Registered Residents', all.registered], ['Not Active (Moved / Deceased)', all.not_active]].forEach(function (p) {
+          var d = document.createElement('div'); d.className = 'stat';
+          var b = document.createElement('b'); b.textContent = p[1];
+          var span = document.createElement('span'); span.textContent = p[0];
+          d.appendChild(b); d.appendChild(span); box.appendChild(d);
+        });
+      }).catch(function () {});
+    });
+  }
+  $('statsBtn').onclick = loadStats;
+
+  // TABS & TABLES
+  var ALL = Object.keys(RES), REP = ['reports/registry','reports/duplicates','reports/population','reports/incidents','reports/requests','reports/revenue'];
+  var ROLE_TABS = {
+    Staff: ['residents','households','documents','blotters','programs','appointments','permits','payments','announcements','staff','directory'].concat(REP),
+    Official: ['documents','blotters','permits','payments','programs','announcements','staff','audit-logs','directory'].concat(REP)
+  };
+  function allowed(k) { return role === 'Admin' || (ROLE_TABS[role] || ALL).indexOf(k) !== -1; }
+  function firstTab() { return ALL.filter(allowed)[0]; }
+  
+  function buildTabs() {
+    var t = $('tabs'); t.textContent = '';
+    Object.keys(RES).filter(allowed).forEach(function (k) {
+      var b = document.createElement('button'); b.textContent = RES[k].label; b.dataset.k = k;
+      b.onclick = function () { openRes(k); };
+      t.appendChild(b);
+    });
+  }
+
+  function hideProfilePanel() {
+    $('profilePanel').classList.add('hide');
+    $('mainLayout').classList.remove('has-profile');
+  }
+
+  function openRes(k) {
+    current = k; var r = RES[k];
+    hideProfilePanel();
+    Array.prototype.forEach.call($('tabs').children, function (b) { b.classList.toggle('on', b.dataset.k === k); });
+    $('resTitle').textContent = r.label;
+    $('search').classList.toggle('hide', !r.search); $('search').value = '';
+    $('selId').value = '';
+    $('body').value = r.tpl ? JSON.stringify(r.tpl, null, 2) : '';
+    $('hint').textContent = r.hint || '';
+    // staff accounts: only an Admin may add / remove; Staff and Official see just their own row and may edit it
+    var ownOnly = k === 'staff' && role !== 'Admin';
+    $('createBtn').classList.toggle('hide', !r.create || ownOnly);
+    $('updateBtn').classList.toggle('hide', !r.update);
+    $('deleteBtn').classList.toggle('hide', !r.del || ownOnly);
+    $('deleteBtn').textContent = k === 'announcements' ? 'Delete' : (k === 'staff' ? 'Remove' : 'Archive');
+    $('body').classList.toggle('hide', !r.create && !r.update);
+    if (ownOnly) {
+      $('body').value = JSON.stringify({ firstName: 'Ana', lastName: 'Lim', positionTitle: 'Clerk' }, null, 2);
+      $('hint').textContent = 'You can only see and edit your own staff record (name and position). Select your row, edit the JSON, then press Update.';
+    }
+    var ex = $('extras'); ex.textContent = '';
+    (r.extra || []).forEach(function (x) {
+      var b = document.createElement('button'); b.className = 'alt'; b.textContent = x.label; b.onclick = x.run; ex.appendChild(b);
+    });
+    load();
+  }
+
+  function renderResidentProfile(row) {
+    selectedResidentData = row;
+    var fn = row.firstName || '', ln = row.lastName || '';
+    $('profAvatar').textContent = (fn.charAt(0) + ln.charAt(0)).toUpperCase() || 'R';
+    $('profName').textContent = fn + ' ' + ln;
+    $('profId').textContent = row.residentCode || ('#' + (row.residentId || row.id || '-'));
+    $('profGender').textContent = (row.gender || '-') + ' / ' + (row.civilStatus || '-');
+    $('profDob').textContent = row.birthDate ? String(row.birthDate).slice(0, 10) : '-';
+    $('profContact').textContent = row.contactNumber || 'N/A';
+    $('profAddress').textContent = row.household ? (row.household.addressDetails + ', ' + row.household.purokZone) : (row.addressDetails || 'Address on file');
+
+    var st = row.recordStatus || 'Active';
+    $('profStatus').className = 'badge ' + (st === 'Active' ? 'b-ok' : 'b-bad');
+    $('profStatus').textContent = st === 'Active' ? 'Active Resident' : (st === 'Moved' ? 'Moved Out' : st);
+
+    $('profilePanel').classList.remove('hide');
+    $('mainLayout').classList.add('has-profile');
+  }
+
+  $('closeProfBtn').onclick = hideProfilePanel;
+
+  $('quickCertBtn').onclick = function () {
+    if (!selectedResidentData) return;
+    openRes('documents');
+    $('body').value = JSON.stringify({ residentId: selectedResidentData.residentId || 1, documentType: 'Barangay Clearance', purpose: 'Employment' }, null, 2);
+  };
+
+  $('quickBlotterBtn').onclick = function () {
+    if (!selectedResidentData) return;
+    openRes('blotters');
+    $('body').value = JSON.stringify({ dateOfIncident: new Date().toISOString().slice(0, 10), incidentType: 'General Incident', complainantResidentId: selectedResidentData.residentId || 1, respondentName: '', description: '' }, null, 2);
+  };
+
+  function load() {
+    var r = RES[current];
+    var path = '/' + current + (r.search && $('search').value ? '?q=' + encodeURIComponent($('search').value) : '');
+    api('GET', path).then(function (res) {
+      var tbl = $('tbl'); tbl.textContent = '';
+      if (!res.ok || !Array.isArray(res.data)) { $('count').textContent = 'No data available.'; return; }
+      var rows = res.data; $('count').textContent = rows.length + ' record(s) found';
+      if (!rows.length) return;
+      var cols = Object.keys(rows[0]);
+      var head = document.createElement('tr');
+      cols.forEach(function (c) { var th = document.createElement('th'); th.textContent = c; head.appendChild(th); });
+      tbl.appendChild(head);
+      rows.forEach(function (row) {
+        var tr = document.createElement('tr'); tr.className = 'pick';
+        cols.forEach(function (c) {
+          var td = document.createElement('td'); var v = row[c];
+          td.textContent = v === null ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+          tr.appendChild(td);
+        });
+        tr.onclick = function () {
+          Array.prototype.forEach.call(tbl.querySelectorAll('tr.sel'), function (x) { x.classList.remove('sel'); });
+          tr.classList.add('sel'); $('selId').value = row[r.id];
+          if (current === 'residents') {
+            renderResidentProfile(row);
+          }
+        };
+        tbl.appendChild(tr);
+      });
+    });
+  }
+  
+  $('refreshBtn').onclick = load;
+  $('search').addEventListener('keydown', function (e) { if (e.key === 'Enter') load(); });
+
+  function readBody() {
+    try { return JSON.parse($('body').value); }
+    catch (e) { show('Invalid JSON', String(e.message), false); return null; }
+  }
+  
+  function needId() {
+    var id = $('selId').value.trim();
+    if (!id) { show('Select a row first', 'Click a row in the table to choose its ID.', false); return null; }
+    return id;
+  }
+  
+  $('createBtn').onclick = function () { var b = readBody(); if (b) api('POST', '/' + current, b).then(done); };
+  $('updateBtn').onclick = function () { var id = needId(), b = readBody(); if (id && b) api('PUT', '/' + current + '/' + id, b).then(done); };
+  $('deleteBtn').onclick = function () { var id = needId(); if (id && confirm('Are you sure you want to delete/archive this record?')) api('DELETE', '/' + current + '/' + id, {}).then(done); };
+  
+  function done(r) { if (r.ok) { load(); loadStats(); } }
+  $('clearLog').onclick = function () { $('log').textContent = 'Log cleared.'; };
+
+  // MODAL UTILITY
+  function openModal(title, fieldsHtml, onSubmit) {
+    $('modalTitle').textContent = title;
+    $('modalBody').innerHTML = fieldsHtml;
+    $('modalContainer').classList.remove('hide');
+    
+    $('modalCancel').onclick = closeModal;
+    $('modalSubmit').onclick = function () {
+      if (onSubmit() === false) return;   // a form can return false to stay open (e.g. a missing field)
+      closeModal();
+    };
+  }
+
+  function closeModal() {
+    $('modalContainer').classList.add('hide');
+    $('modalBody').innerHTML = '';
+  }
+
+  // MODAL ACTIONS
+  function processDocModal() {
+    var id = needId(); if (!id) return;
+    var html = '<div class="form-group"><label>New Status</label><select id="m_status"><option>Processing</option><option>Ready</option><option>Claimed</option><option>Rejected</option></select></div>' +
+               '<div class="form-group"><label>Amount (₱)</label><input id="m_amount" type="number" value="50"></div>' +
+               '<div class="form-group"><label>Payment Method</label><select id="m_method"><option>Cash</option><option>GCash</option><option>Maya</option></select></div>';
+    
+    openModal('Process Document Request #' + id, html, function () {
+      var s = $('m_status').value;
+      var body = { newStatus: s };
+      if (s === 'Ready') {
+        body.amount = Number($('m_amount').value);
+        body.method = $('m_method').value;
+      }
+      api('PATCH', '/documents/' + id + '/process', body).then(done);
+    });
+  }
+
+  function payDocModal() {
+    var id = needId(); if (!id) return;
+    var html = '<div class="form-group"><label>Official Receipt (OR) Number</label><input id="m_or" value="OR-' + Math.floor(1000 + Math.random()*9000) + '"></div>' +
+               '<div class="form-group"><label>Payment Method</label><select id="m_method"><option>Cash</option><option>GCash</option><option>Maya</option></select></div>';
+    
+    openModal('Record Document Payment #' + id, html, function () {
+      api('PATCH', '/documents/' + id + '/payment', { orNumber: $('m_or').value, method: $('m_method').value }).then(done);
+    });
+  }
+
+  // POST ANNOUNCEMENT: a plain form. The signed-in staff member is recorded automatically; residents see it right away.
+  function postAnnouncementModal() {
+    var esc = function (t) { var d = document.createElement('div'); d.textContent = String(t == null ? '' : t); return d.innerHTML; };
+    fetch('/api/households', { headers: { Authorization: 'Bearer ' + token } })
+      .then(function (r) { return r.json(); }).catch(function () { return []; })
+      .then(function (rows) {
+        var seen = {};
+        (Array.isArray(rows) ? rows : []).forEach(function (h) { if (h.purokZone) seen[h.purokZone] = 1; });
+        var puroks = Object.keys(seen).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
+        var html = '<div class="form-group"><label>Title</label><input id="m_a_title" maxlength="120" placeholder="e.g. Barangay clean-up drive"></div>' +
+                   '<div class="form-group"><label>Message</label><textarea id="m_a_msg" rows="4" placeholder="What do residents need to know?"></textarea></div>' +
+                   '<div class="form-group"><label>Who should see it?</label><select id="m_a_aud"><option value="All">Everyone (all accounts: staff and residents)</option><option value="Residents">All residents</option>' +
+                     puroks.map(function (p) { return '<option value="' + esc(p) + '">Only ' + esc(p) + '</option>'; }).join('') + '</select></div>' +
+                   '<div class="form-group"><label>Priority</label><select id="m_a_pri"><option>Normal</option><option>Important</option><option>Emergency</option></select>' +
+                     '<small class="mu">Emergency also shows a red banner at the top of the resident portal for 3 days.</small></div>' +
+                   '<p id="m_a_err" class="err" style="margin:6px 0 0; min-height:18px;"></p>';
+        openModal('Post Announcement', html, function () {
+          var title = $('m_a_title').value.trim(), msg = $('m_a_msg').value.trim();
+          if (!title || !msg) { $('m_a_err').textContent = 'Please write a title and a message.'; return false; }
+          api('POST', '/announcements', { title: title, messageBody: msg, targetAudience: $('m_a_aud').value, priority: $('m_a_pri').value }).then(done);
+        });
+      });
+  }
+
+  function addPartyModal() {
+    var id = needId(); if (!id) return;
+    var html = '<div class="form-group"><label>Resident ID</label><input id="m_rid" value="1"></div>' +
+               '<div class="form-group"><label>Role</label><select id="m_role"><option>Witness</option><option>Complainant</option><option>Respondent</option></select></div>' +
+               '<div class="form-group"><label>Statement</label><textarea id="m_stmt" placeholder="Enter party statement..."></textarea></div>';
+    
+    openModal('Add Blotter Party to Case #' + id, html, function () {
+      api('POST', '/blotters/' + id + '/parties', { 
+        residentId: Number($('m_rid').value), 
+        partyRole: $('m_role').value, 
+        statement: $('m_stmt').value 
+      }).then(done);
+    });
+  }
+
+  function registerResidentModal() {
+    var id = needId(); if (!id) return;
+    var html = '<div class="form-group"><label>Resident ID</label><input id="m_rid" value="1"></div>' +
+               '<div class="form-group"><label>Recorded By Staff ID</label><input id="m_sid" value="1"></div>';
+    
+    openModal('Register Resident to Program #' + id, html, function () {
+      api('POST', '/programs/' + id + '/register', { residentId: Number($('m_rid').value), recordedByStaffId: Number($('m_sid').value) }).then(done);
+    });
+  }
+
+  function setAttendanceModal() {
+    var id = needId(); if (!id) return;
+    var html = '<div class="form-group"><label>Resident ID</label><input id="m_rid" value="1"></div>' +
+               '<div class="form-group"><label>Attendance Status</label><select id="m_att"><option>Attended</option><option>Registered</option><option>NoShow</option><option>Cancelled</option></select></div>';
+    
+    openModal('Update Program Attendance #' + id, html, function () {
+      api('PATCH', '/programs/' + id + '/residents/' + $('m_rid').value + '/attendance', { attendanceStatus: $('m_att').value }).then(done);
+    });
+  }
+
+  function permitStatusModal() {
+    var id = needId(); if (!id) return;
+    var html = '<div class="form-group"><label>Status</label><select id="m_pstat"><option>Approved</option><option>Rejected</option><option>Expired</option></select></div>';
+    
+    openModal('Set Business Permit Status #' + id, html, function () {
+      api('PATCH', '/permits/' + id + '/status', { status: $('m_pstat').value }).then(done);
+    });
+  }
+
+  function verifyUrl(code) { return location.origin + '/verify.html?code=' + encodeURIComponent(code); }
+  function qrSvg(text) { var q = qrcode(0, 'M'); q.addData(text); q.make(); return q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); }
+
+  // PRINT CERTIFICATE (uses the real request: type, resident, verification code)
+  function printCertificate() {
+    var id = needId(); if (!id) return;
+    fetch('/api/documents', { headers: { Authorization: 'Bearer ' + token } })
+      .then(function (r) { return r.json(); })
+      .then(function (list) {
+        var doc = (Array.isArray(list) ? list : []).filter(function (d) { return String(d.requestId) === String(id); })[0];
+        if (!doc) { show('Cannot print', 'Request #' + id + ' was not found among the latest 200 requests.', false); return; }
+        if (doc.status !== 'Ready' && doc.status !== 'Claimed') { show('Cannot print', 'Only Ready or Claimed documents can be printed (this one is ' + doc.status + ').', false); return; }
+        var esc = function (t) { var d = document.createElement('div'); d.textContent = String(t == null ? '' : t); return d.innerHTML; };
+        var name = doc.resident ? doc.resident.firstName + ' ' + doc.resident.lastName : 'Request #' + id;
+        var issued = doc.payment && doc.payment.datePaid ? new Date(doc.payment.datePaid) : new Date();
+        var pSection = $('printSection');
+        pSection.innerHTML =
+          '<img src="/seal.png" alt="" style="position:fixed; top:50%; left:50%; width:560px; height:560px; margin:-280px 0 0 -280px; opacity:0.10; z-index:0; -webkit-print-color-adjust:exact; print-color-adjust:exact;">' +
+          '<div style="position:relative; z-index:1;">' +
+          '<div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 30px;">' +
+            '<img src="/seal.png" alt="Bantay Barangay seal" style="width:96px; height:96px; display:block; margin:0 auto 8px;">' +
+            '<h4 style="margin: 0; font-weight: normal; text-transform: uppercase;">Republic of the Philippines</h4>' +
+            '<h3 style="margin: 4px 0; font-weight: bold;">OFFICE OF THE BARANGAY CHAIRMAN</h3>' +
+            '<h2 style="margin: 8px 0; text-transform: uppercase; letter-spacing: 1px;">' + esc(doc.documentType) + '</h2>' +
+          '</div>' +
+          '<p style="text-align: justify; font-size: 16px; line-height: 1.8;">' +
+            'This is to certify that <b>' + esc(name) + '</b> is a bona fide resident of this barangay with good moral character and no derogatory record filed in this office.' +
+          '</p>' +
+          '<p style="text-align: justify; font-size: 16px; line-height: 1.8; margin-top: 20px;">' +
+            'This document is issued upon request of the applicant for ' + esc(doc.purpose || 'legal presentation and verification') + '.' +
+          '</p>' +
+          '<div style="margin-top: 80px; display: flex; justify-content: space-between; align-items: flex-end;">' +
+            '<div style="display: flex; align-items: flex-end; gap: 12px;">' +
+              (doc.verificationCode ? '<div style="text-align: center;"><div style="width: 104px; height: 104px;">' + qrSvg(verifyUrl(doc.verificationCode)) + '</div><div style="font-size: 10px;">Scan to verify</div></div>' : '') +
+              '<div>' +
+                '<p style="margin: 0; font-size: 12px;">Verification Code: <b>' + esc(doc.verificationCode || '') + '</b></p>' +
+                '<p style="margin: 0; font-size: 12px;">Date Issued: ' + esc(issued.toLocaleDateString()) + '</p>' +
+                '<p style="margin: 0; font-size: 12px;">Verify at: ' + esc(location.origin) + '/verify.html</p>' +
+              '</div>' +
+            '</div>' +
+            '<div style="text-align: center; border-top: 1px solid #000; width: 220px; padding-top: 4px;">' +
+              '<p style="margin: 0; font-weight: bold;">HON. BARANGAY CAPTAIN</p>' +
+              '<p style="margin: 0; font-size: 12px; color: #555;">Punong Barangay</p>' +
+            '</div>' +
+          '</div>' +
+          '</div>';
+
+        pSection.classList.remove('hide');
+        document.body.classList.add('print-cert');   // print CSS hides the rest of the console
+        var t0 = Date.now();
+        (function wait() {
+          var ready = true, imgs = pSection.getElementsByTagName('img');
+          for (var i = 0; i < imgs.length; i++) if (!imgs[i].complete) ready = false;
+          if (ready || Date.now() - t0 > 4000) {
+            window.print();
+            pSection.classList.add('hide');
+            document.body.classList.remove('print-cert');
+          } else setTimeout(wait, 100);
+        })();
+      })
+      .catch(function () { show('Cannot print', 'Could not load the document from the server.', false); });
+  }
+
+})();
+</script>
+</body>
+</html>

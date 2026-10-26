@@ -64,6 +64,7 @@ Bantay-Baranggay Database replaces paper records with one centralized, normalize
 
 ### 📢 Announcements & Alerts
 - Stores barangay announcements and events
+- Emergency alerts: an announcement with priority `Emergency` shows as a red banner in the resident portal (for everyone, or one purok)
 - Supports emergency alert records for SMS and app notifications
 
 ### 📅 Appointments
