@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bantay-Barangay | Resident Portal</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" type="image/png" href="/seal.png">
+</head>
+<body>
+<div id="alert"></div>
+<header>
+  <div class="brand">
+    <div class="logo"></div>
+    <b>Bantay-Barangay Resident Portal</b>
+  </div>
+  <span id="whoHeader" class="mu"></span>
+</header>
+
+<main>
+  <div id="alertBar" class="alert-bar hide" role="alert" aria-live="assertive"></div>
+  <p id="msg" style="padding: 0 24px; margin-top: 12px;"></p>
+
+  <!-- RESIDENT LANDING & AUTHENTICATION -->
+  <div id="auth" class="narrow stack">
+    <!-- LANDING PAGE CHOICES -->
+    <div id="landingView" class="card landing-card">
+      <div class="landing-header">
+        <img class="seal-lg" src="/seal.png" alt="Bantay Barangay seal">
+        <h2>Welcome to the Resident Portal</h2>
+        <p class="mu">Please select an option below to access barangay services.</p>
+      </div>
+
+      <div class="portal-choices">
+        <!-- CHOICE 1: ALREADY REGISTERED -->
+        <div class="choice-box" id="btnChoiceLogin">
+          <div class="choice-icon">👤</div>
+          <h3>Registered Resident</h3>
+          <p class="mu">I already have an account and want to sign in to request services.</p>
+          <button style="margin-top: auto;">Sign In</button>
+        </div>
+
+        <!-- CHOICE 2: NOT REGISTERED -->
+        <div class="choice-box" id="btnChoiceRegister">
+          <div class="choice-icon">📝</div>
+          <h3>New Resident</h3>
+          <p class="mu">I do not have an account yet and want to register as a resident.</p>
+          <button class="alt" style="margin-top: auto;">Create Account</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIGN IN FORM -->
+    <div id="loginFormCard" class="card hide" style="max-width: 440px; margin: 40px auto; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="margin: 0;">Sign In to Your Account</h3>
+        <button class="alt" id="backToLanding1" style="padding: 4px 10px; font-size: 12px;">← Back</button>
+      </div>
+      <p class="mu" style="margin-bottom: 16px; font-size: 13px;">Enter your credentials to manage requests and complaints.</p>
+      <input id="le" placeholder="Email Address">
+      <input id="lp" type="password" placeholder="Password">
+      <button id="lb" style="margin-top: 12px; width: 100%;">Log In</button>
+      <p class="mu" style="margin-top: 16px; font-size: 13px; text-align: center;">
+        Don't have an account yet? <a href="#" id="linkToRegister">Register here</a>
+      </p>
+    </div>
+
+    <!-- REGISTER FORM -->
+    <div id="registerFormCard" class="card hide" style="max-width: 440px; margin: 40px auto; padding: 28px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h3 style="margin: 0;">Resident Account Registration</h3>
+        <button class="alt" id="backToLanding2" style="padding: 4px 10px; font-size: 12px;">← Back</button>
+      </div>
+      <p class="muted" style="margin-bottom: 16px; font-size: 13px;">Your details must match the official record registered at the Barangay Hall.</p>
+      <input id="re" placeholder="Email Address">
+      <input id="rp" type="password" placeholder="Choose a Password">
+      <input id="rl" placeholder="Surname">
+      <input id="rb" type="date">
+      <button id="rbtn" style="margin-top: 12px; width: 100%;">Create Account</button>
+      <p class="mu" style="margin-top: 16px; font-size: 13px; text-align: center;">
+        Already registered? <a href="#" id="linkToLogin">Sign in here</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- RESIDENT DASHBOARD APP (EXECUTIVE SIDEBAR LAYOUT) -->
+  <section id="app" class="hide">
+    <nav id="nav"></nav>
+    <div id="view"></div>
+  </section>
+</main>
+
+<!-- MODAL OVERLAY FOR CASH & FREE PICKUP APPOINTMENTS -->
+<div id="cashModal" class="modal-overlay hide">
+  <div class="modal-card">
+    <h3 style="margin-top:0;">Schedule Barangay Hall Visit</h3>
+    <p class="mu" style="font-size:13px; margin-bottom:16px;" id="modalSubtitle">
+      Select the date and time you will visit the Barangay Hall to pick up your printed document.
+    </p>
+    <div class="form-group">
+      <label>Pickup Date</label>
+      <input id="cashModalDate" type="date">
+    </div>
+    <div class="form-group">
+      <label>Pickup Time</label>
+      <input id="cashModalTime" type="time">
+    </div>
+    <p id="cashModalErr" class="err" style="font-size:13px; margin:8px 0 0; min-height:18px;"></p>
+    <div class="modal-actions" style="margin-top:20px;">
+      <button class="alt" id="cashModalCancel">Cancel</button>
+      <button id="cashModalConfirm">Confirm & Book Visit</button>
+    </div>
+  </div>
+</div>
+
+<script src="qrcode.js"></script>
+<script src="announce-popup.js"></script>
+<script>
+(function(){'use strict';
+var tok=null, userProfile=null, activeCashRequestId=null, options={fees:[],pickup:{days:[1,2,3,4,5],open:'08:00',close:'17:00'}}, paidId=(location.search.match(/paid=(\d+)/)||[])[1]||null, $ = function(i){return document.getElementById(i)};
+
+function say(t,ok){var m=$('msg');m.textContent=t;m.style.color=ok?'var(--ok)':'var(--bad)';}
+function api(m,p,b){
+  var o={method:m,headers:{'Content-Type':'application/json'}};
+  if(tok) o.headers.Authorization='Bearer '+tok;
+  if(b) o.body=JSON.stringify(b);
+  return fetch('/api'+p,o).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})});
+}
+function send(p,b,okText,cb){
+  api('POST',p,b).then(function(r){
+    say(r.ok?okText:(r.d.error||'Something went wrong'),r.ok);
+    if(r.ok && cb) cb(r.d);
+    if(r.ok) loadDataAndShow(currentTab);
+  });
+}
+
+// UI ROUTING TOGGLES
+function showLanding() {
+  $('landingView').classList.remove('hide');
+  $('loginFormCard').classList.add('hide');
+  $('registerFormCard').classList.add('hide');
+  say('', true);
+}
+
+function showLogin() {
+  $('landingView').classList.add('hide');
+  $('loginFormCard').classList.remove('hide');
+  $('registerFormCard').classList.add('hide');
+  say('', true);
+}
+
+function showRegister() {
+  $('landingView').classList.add('hide');
+  $('loginFormCard').classList.add('hide');
+  $('registerFormCard').classList.remove('hide');
+  say('', true);
+}
+
+$('btnChoiceLogin').onclick = showLogin;
+$('btnChoiceRegister').onclick = showRegister;
+$('backToLanding1').onclick = showLanding;
+$('backToLanding2').onclick = showLanding;
+$('linkToRegister').onclick = function(e){ e.preventDefault(); showRegister(); };
+$('linkToLogin').onclick = function(e){ e.preventDefault(); showLogin(); };
+
+// AUTHENTICATION
+$('lb').onclick=function(){
+  api('POST','/resident/login',{email:$('le').value,password:$('lp').value}).then(function(r){
+    if(!r.ok){say(r.d.error||'Login failed');return;}
+    tok=r.d.token;
+    say('',true);
+    $('auth').classList.add('hide');
+    $('app').classList.remove('hide');
+    buildNavigation();
+    api('GET','/me/options').then(function(o){
+      if(o.ok) options=o.d;
+      if(paidId){ showTab('payments'); confirmOnlinePayment(Number(paidId)); }
+      else showTab('home');
+    });
+  });
+};
+
+$('rbtn').onclick=function(){
+  api('POST','/resident/register',{email:$('re').value,password:$('rp').value,lastName:$('rl').value,birthDate:$('rb').value}).then(function(r){
+    say(r.ok?r.d.message:r.d.error,r.ok);
+    if(r.ok) showLogin();
+  });
+};
+
+// SIDEBAR NAVIGATION WITH PAYMENTS ON LEFT
+var TABS = {
+  home: 'Dashboard Overview',
+  payments: 'Payments & Settlement',
+  documents: 'Request Documents',
+  complaints: 'File Incident / Complaint',
+  appointments: 'Book Appointment',
+  announcements: 'Announcements',
+  profile: 'My Resident Profile'
+};
+
+var currentTab = 'home';
+
+function buildNavigation() {
+  var nav = $('nav');
+  nav.textContent = '';
+  Object.keys(TABS).forEach(function(k){
+    var btn = document.createElement('button');
+    btn.textContent = TABS[k];
+    btn.dataset.k = k;
+    btn.onclick = function(){ showTab(k); };
+    nav.appendChild(btn);
+  });
+  
+  var logoutBtn = document.createElement('button');
+  logoutBtn.textContent = 'Sign Out';
+  logoutBtn.className = 'bad';
+  logoutBtn.style.marginTop = 'auto';
+  logoutBtn.onclick = function(){ tok=null; location.reload(); };
+  nav.appendChild(logoutBtn);
+}
+
+function showTab(k) {
+  currentTab = k;
+  Array.prototype.forEach.call($('nav').children, function(b){
+    if(b.dataset.k) b.className = b.dataset.k === k ? 'on' : '';
+  });
+  loadDataAndShow(k);
+}
+
+function loadDataAndShow(k) {
+  api('GET','/me').then(function(r){
+    if(!r.ok) return;
+    var data = r.d;
+    userProfile = data;
+    
+    // Header Info
+    $('whoHeader').innerHTML = '<span>' + data.profile.firstName + ' ' + data.profile.lastName + '</span> <span style="background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:4px; font-weight:600; font-size:12px;">Resident</span>';
+
+    var view = $('view');
+    view.textContent = '';
+    
+    var headerTitle = document.createElement('h2');
+    headerTitle.textContent = TABS[k];
+    view.appendChild(headerTitle);
+
+    RENDER_VIEWS[k](view, data);
+    refreshAlert();
+    if(!alertTimer) alertTimer = setInterval(refreshAlert, 60000); // new alerts appear without a refresh
+  });
+}
+
+function esc(t){ var d=document.createElement('div'); d.textContent=String(t==null?'':t); return d.innerHTML; }
+function peso(n){ return '\u20B1' + Number(n).toFixed(2); }
+function feeOf(type){ var f=options.fees.filter(function(x){return x.documentType===type})[0]; return f?f.fee:null; }
+function fmtTime(t){ var m=String(t||'').match(/T?(\d{2}):(\d{2})/); if(!m) return 'office hours'; var h=+m[1]; return ((h%12)||12)+':'+m[2]+' '+(h>=12?'PM':'AM'); }
+function visitFor(d, reqId){ // the upcoming hall visit booked for this document, if any
+  var tag='(Request #'+reqId+')';
+  return d.appointments.filter(function(a){ return a.status==='Upcoming' && String(a.purpose).indexOf(tag)>-1; })[0];
+}
+function ymd(n){ return new Date(Date.now()+n*864e5).toLocaleDateString('en-CA',{timeZone:'Asia/Manila'}); } // real Philippine date, n days from today
+function today(){ return ymd(0); }
+function nowTime(){ return new Date().toLocaleTimeString('en-GB',{timeZone:'Asia/Manila',hour:'2-digit',minute:'2-digit',hour12:false}); }
+function dow(d){ return new Date(d+'T00:00:00Z').getUTCDay(); }
+// '' when the visit slot is fine, otherwise a message. Same rules the server enforces.
+function slotProblem(d,t,needTime){
+  var p=options.pickup;
+  if(!d) return 'Please choose a date.';
+  if(d<today()) return 'That date has already passed. Please choose today or a future date.';
+  if(p.days.indexOf(dow(d))<0) return 'The Barangay Hall is closed on weekends. Please choose Monday to Friday.';
+  if(!t) return needTime ? 'Please choose a time.' : '';
+  if(d===today() && t<=nowTime()) return 'That time has already passed today. Please choose a later time.';
+  if(t<p.open || t>p.close) return 'Please visit between '+fmtTime('T'+p.open)+' and '+fmtTime('T'+p.close)+'.';
+  return '';
+}
+function refreshVisitInputs(){
+  var d=$('cashModalDate').value, p=options.pickup;
+  $('cashModalTime').min = (d===today() && nowTime()>p.open) ? nowTime() : p.open; // today: only later than right now
+  $('cashModalTime').max = p.close;
+  $('cashModalErr').textContent = slotProblem(d, $('cashModalTime').value, false);
+}
+if($('rb')) $('rb').max = today(); // a birth date can never be in the future
+
+// After PayMongo sends the resident back, the webhook may still be on its way: poll until the payment shows as Paid.
+function confirmOnlinePayment(reqId){
+  var tries=0;
+  say('Confirming your payment with PayMongo\u2026', true);
+  (function check(){
+    // ask the server to check PayMongo directly (works even if PayMongo's webhook has not reached us)
+    api('POST','/me/documents/'+reqId+'/sync-payment').then(function(r){
+      if(r.ok && r.d.paid){
+        say('Payment received! Your certificate is ready \u2014 press "Print Certificate" below.', true);
+        paidId=null; showTab('payments'); return;
+      }
+      if(++tries<6) { setTimeout(check, 2500); return; }
+      if(!r.ok) say('Could not check with PayMongo: ' + (r.d.error || 'unknown error') + ' (see the server terminal for details).', false);
+      else if(r.d.reason) say(r.d.reason, false);
+      else if(r.d.sessionStatus) say('PayMongo reports this checkout as "' + r.d.sessionStatus + '"' + (r.d.paymentStatuses && r.d.paymentStatuses.length ? ' (payment: ' + r.d.paymentStatuses.join(', ') + ')' : ' with no payment on it yet') + '. It is only confirmed once the payment is completed on the PayMongo page.', false);
+      else say(r.d.reason || 'No online checkout has been started for this document.', false);
+    });
+  })();
+}
+
+// QR code (vector) that opens the verify page with the code already filled in
+function verifyUrl(code){ return location.origin + '/verify.html?code=' + encodeURIComponent(code); }
+function qrSvg(text){ var q=qrcode(0,'M'); q.addData(text); q.make(); return q.createSvgTag({cellSize:4, margin:2, scalable:true}); }
+
+// EMERGENCY ALERT BANNER: any announcement with priority "Emergency" from the last 3 days, for everyone ("All") or this resident's purok.
+var dismissedAlerts = {}, alertTimer = null;
+function refreshAlert(){
+  if(!tok) return;
+  api('GET','/announcements').then(function(r){
+    if(!r.ok) return;
+    var prof = userProfile && userProfile.profile;
+    // pop-up for Important / Emergency announcements (the server already hid other puroks' announcements)
+    if(window.announcePopup) announcePopup({ userKey: 'res' + (prof && prof.residentId || ''), list: r.d });
+    var purok = prof && prof.household ? String(prof.household.purokZone||'').trim().toLowerCase() : '';
+    var cutoff = Date.now() - 72*3600*1000;
+    var list = r.d.filter(function(x){
+      var aud = String(x.targetAudience||'All').trim().toLowerCase();
+      return /^emergency$/i.test(String(x.priority||'').trim()) && new Date(x.datePosted).getTime() >= cutoff
+          && !dismissedAlerts[x.announcementId] && (aud==='all' || aud==='residents' || (purok && aud===purok));
+    });
+    var bar = $('alertBar'); bar.textContent = '';
+    if(!list.length){ bar.classList.add('hide'); return; }
+    list.forEach(function(x){
+      var row=document.createElement('div'); row.className='alert-row';
+      var b=document.createElement('b'); b.textContent='\u26A0 EMERGENCY: ' + x.title;
+      var sp=document.createElement('span'); sp.textContent=' \u2014 ' + x.messageBody;
+      var close=document.createElement('button'); close.className='alert-x'; close.textContent='\u2715'; close.setAttribute('aria-label','Dismiss alert');
+      close.onclick=function(){ dismissedAlerts[x.announcementId]=true; refreshAlert(); };
+      row.appendChild(b); row.appendChild(sp); row.appendChild(close); bar.appendChild(row);
+    });
+    bar.classList.remove('hide');
+  });
+}
+
+// wait until the seal image has loaded in the print window, then open the print dialog
+function printWhenReady(w){
+  var t0=Date.now();
+  (function wait(){
+    var ready=true, imgs=w.document.images;
+    for(var i=0;i<imgs.length;i++) if(!imgs[i].complete) ready=false;
+    if(ready || Date.now()-t0>4000){ w.focus(); w.print(); } else setTimeout(wait,100);
+  })();
+}
+
+function printDigitalCertificate(docType, resName, verificationCode, issuedOn) {
+  var w = window.open('','_blank');
+  var issued = (issuedOn ? new Date(issuedOn) : new Date()).toLocaleDateString();
+  var seal = esc(location.origin) + '/seal.png';
+  w.document.write(
+    '<title>Barangay Digital Certificate</title>' +
+    '<body style="font-family:Georgia,serif; text-align:center; padding:60px; margin:0;">' +
+      // faint watermark, repeated on every printed page
+      '<img src="' + seal + '" alt="" style="position:fixed; top:50%; left:50%; width:560px; height:560px; margin:-280px 0 0 -280px; opacity:0.10; z-index:0; -webkit-print-color-adjust:exact; print-color-adjust:exact;">' +
+      '<div style="position:relative; z-index:1;">' +
+      '<img src="' + seal + '" alt="Bantay Barangay seal" style="width:96px; height:96px; display:block; margin:0 auto 8px;">' +
+      '<p style="text-transform:uppercase; margin:0;">Republic of the Philippines</p>' +
+      '<h3 style="margin:4px 0;">OFFICE OF THE BARANGAY CAPTAIN</h3>' +
+      '<h1 style="margin:20px 0; text-transform:uppercase; text-decoration:underline;">' + esc(docType) + '</h1>' +
+      '<p style="font-size:16px; line-height:1.8; text-align:justify; margin:40px 0;">' +
+        'This is to certify that <b>' + esc(resName) + '</b> is a bona fide resident of this barangay with good moral character and clean record in this office. Issued for official representation.' +
+      '</p>' +
+      '<div style="margin-top:60px; display:flex; justify-content:space-between; align-items:flex-end;">' +
+        '<div style="text-align:left; display:flex; align-items:flex-end; gap:12px;">' +
+          (verificationCode ? '<div style="text-align:center;"><div style="width:104px; height:104px;">' + qrSvg(verifyUrl(verificationCode)) + '</div><div style="font-size:10px;">Scan to verify</div></div>' : '') +
+          '<div>' +
+            '<p style="margin:0; font-size:12px;">Verification Code: <b>' + esc(verificationCode || '') + '</b></p>' +
+            '<p style="margin:0; font-size:12px;">Issued Date: ' + esc(issued) + '</p>' +
+            '<p style="margin:0; font-size:12px;">Verify this document at: ' + esc(location.origin) + '/verify.html</p>' +
+          '</div>' +
+        '</div>' +
+        '<div style="text-align:center; border-top:1px solid #000; width:200px; padding-top:4px;">' +
+          '<p style="margin:0; font-weight:bold;">PUNONG BARANGAY</p>' +
+        '</div>' +
+      '</div>' +
+      '</div>' +
+    '</body>'
+  );
+  w.document.close();
+  printWhenReady(w);
+}
+
+function openAppointmentModal(reqId, noFee) {
+  activeCashRequestId = reqId;
+  var p = options.pickup;
+  $('modalSubtitle').textContent = (noFee
+    ? 'Choose when you will visit the Barangay Hall to collect your printed copy.'
+    : 'You chose to pay cash. Choose when you will visit the Barangay Hall to pay and collect your printed certificate.')
+    + ' Open Monday\u2013Friday, ' + fmtTime('T'+p.open) + ' \u2013 ' + fmtTime('T'+p.close) + '.';
+  $('cashModalDate').min = today();
+  // pre-fill the next day the hall is open (today only if it is still before closing time)
+  var first=''; for(var i=0;i<8;i++){ var c=ymd(i); if(p.days.indexOf(dow(c))>-1 && !(i===0 && nowTime()>=p.close)){ first=c; break; } }
+  $('cashModalDate').value = first; $('cashModalTime').value = '';
+  refreshVisitInputs();
+  $('cashModal').classList.remove('hide');
+}
+
+$('cashModalDate').onchange = $('cashModalDate').oninput = refreshVisitInputs;
+$('cashModalTime').onchange = $('cashModalTime').oninput = refreshVisitInputs;
+
+$('cashModalCancel').onclick = function() {
+  $('cashModal').classList.add('hide');
+  activeCashRequestId = null;
+};
+
+$('cashModalConfirm').onclick = function() {
+  var d = $('cashModalDate').value;
+  var t = $('cashModalTime').value;
+
+  var msg = slotProblem(d, t, true);
+  if (msg) { $('cashModalErr').textContent = msg; return; }
+
+  send('/me/documents/' + activeCashRequestId + '/pickup', {
+    scheduledDate: d,
+    scheduledTime: t
+  }, 'Visit booked for ' + d + ' at ' + t + '. Bring a valid ID; your printed certificate will be released at the Barangay Hall.', function(){
+    $('cashModal').classList.add('hide');
+    activeCashRequestId = null;
+    showTab('payments');
+  });
+};
+
+var RENDER_VIEWS = {
+  home: function(v, d) {
+    // Welcome Banner
+    var welcome = document.createElement('div');
+    welcome.className = 'card welcome-banner';
+    welcome.innerHTML = 
+      '<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">' +
+        '<div>' +
+          '<h3 style="margin:0 0 4px; font-size:18px;">Welcome back, ' + d.profile.firstName + '!</h3>' +
+          (d.profile.residentCode ? '<p class="mu" style="margin:0 0 2px; font-size:13px;">Resident ID: <b>' + d.profile.residentCode + '</b></p>' : '') +
+          '<p class="mu" style="margin:0; font-size:13px;">Address: ' + (d.profile.household ? d.profile.household.addressDetails + ', ' + d.profile.household.purokZone : 'Barangay Hall Record') + '</p>' +
+        '</div>' +
+        '<div class="row">' +
+          '<button id="quickDocBtn">Request Document</button>' +
+          '<button id="quickPayBtn" class="alt">View Payments</button>' +
+        '</div>' +
+      '</div>';
+    v.appendChild(welcome);
+
+    // Quick Stats
+    var stats = document.createElement('div');
+    stats.className = 'stats';
+    stats.innerHTML = 
+      '<div class="stat"><b>' + d.documents.length + '</b>Document Requests</div>' +
+      '<div class="stat"><b>' + d.complaints.length + '</b>Filed Complaints</div>' +
+      '<div class="stat"><b>' + d.appointments.length + '</b>Scheduled Appointments</div>';
+    v.appendChild(stats);
+
+    document.getElementById('quickDocBtn').onclick = function(){ showTab('documents'); };
+    document.getElementById('quickPayBtn').onclick = function(){ showTab('payments'); };
+  },
+
+  // PAYMENTS TAB: pay online -> printable certificate | pay cash -> appointment at the barangay hall
+  payments: function(v, d) {
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML =
+      '<h3>Payments & Document Processing</h3>' +
+      '<p class="mu" style="margin-bottom:16px; font-size:13px;">' +
+        '<b>Pay online</b> (GCash, card or QR Ph) and print your certificate right away, or <b>pay cash</b> and book a visit to collect the printed certificate at the Barangay Hall.' +
+      '</p>';
+
+    var tableWrapper = document.createElement('div');
+    tableWrapper.className = 'tw';
+    var tbl = document.createElement('table');
+    tbl.innerHTML = '<tr><th>Req #</th><th>Document Type</th><th>Fee</th><th>Status</th><th>Actions / Options</th></tr>';
+    var fullName = d.profile.firstName + ' ' + d.profile.lastName;
+
+    d.documents.forEach(function(x){
+      var pay = x.payment;
+      var amount = pay ? Number(pay.amount) : feeOf(x.documentType);
+      var isFree = amount === 0;
+      var isPaid = !!pay && pay.paymentStatus === 'Paid';
+      var paidOnline = isPaid && !isFree && pay.paymentMethod === 'PayMongo';
+      var visit = visitFor(d, x.requestId);
+      var badge, note = '';
+      var actionTd = document.createElement('td');
+
+      function btn(label, cls, fn){ var b=document.createElement('button'); b.textContent=label; if(cls) b.className=cls; b.style.marginRight='6px'; b.onclick=fn; actionTd.appendChild(b); }
+      function printBtn(){ btn('\uD83D\uDDA8\uFE0F Print Certificate', '', function(){ printDigitalCertificate(x.documentType, fullName, x.verificationCode, pay && pay.datePaid); }); }
+      function cancelBtn(){ btn('\u2716 Cancel Request', 'bad', function(){
+        if(!confirm('Cancel this ' + x.documentType + ' request? Any hall visit you booked for it will be cancelled too.')) return;
+        send('/me/documents/' + x.requestId + '/cancel', {}, 'Request cancelled.');
+      }); }
+      function hallNote(){ return visit
+          ? 'Visit booked: <b>' + esc(String(visit.scheduledDate).slice(0,10)) + '</b> at <b>' + esc(fmtTime(visit.scheduledTime)) + '</b>'
+          : ''; }
+
+      if (x.status === 'Cancelled') {
+        badge = '<span class="badge b-bad">Cancelled</span>';
+        note = 'You cancelled this request.';
+      } else if (x.status === 'Rejected') {
+        badge = '<span class="badge b-bad">Rejected</span>';
+        note = 'This request was rejected. Please contact the Barangay Hall.';
+      } else if (x.status === 'Claimed') {
+        badge = '<span class="badge b-ok">Released</span>';
+        note = 'You already collected this document.';
+      } else if (paidOnline) {
+        badge = '<span class="badge b-ok">Paid online</span>';
+        printBtn();
+      } else if (isPaid && !isFree) {
+        badge = '<span class="badge b-ok">Paid (cash)</span>';
+        note = 'Payment recorded at the Barangay Hall. ' + (visit ? hallNote() : 'Your printed certificate is released at the hall.');
+      } else if (isFree) {
+        badge = '<span class="badge b-ok">No fee</span>';
+        printBtn();
+        if (visit) note = hallNote();
+        else btn('\uD83D\uDCC5 Pick up at Barangay', 'alt', function(){ openAppointmentModal(x.requestId, true); });
+        cancelBtn();
+      } else {
+        badge = '<span class="badge b-warn">Awaiting payment</span>';
+        btn('\uD83D\uDCB3 Pay Online (' + peso(amount) + ')', '', function(){
+          api('POST','/me/documents/'+x.requestId+'/pay').then(function(res){
+            if(res.ok) location = res.d.checkoutUrl;
+            else say(res.d.error||'Could not start online checkout');
+          });
+        });
+        if (pay && pay.checkoutSessionId) btn('\u21BB Check payment status', 'alt', function(){ confirmOnlinePayment(x.requestId); });
+        if (visit) note = 'Pay cash at the hall \u2014 ' + hallNote();
+        else btn('\uD83D\uDCB5 Pay Cash (Book a Visit)', 'alt', function(){ openAppointmentModal(x.requestId, false); });
+        cancelBtn();
+      }
+
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>#' + x.requestId + '</td>' +
+        '<td><b>' + esc(x.documentType) + '</b></td>' +
+        '<td>' + (amount == null ? '-' : (isFree ? 'FREE' : peso(amount))) + '</td>' +
+        '<td>' + badge + '</td>';
+      if (note) { var n=document.createElement('div'); n.className='mu'; n.style.cssText='font-size:12px; margin-top:6px;'; n.innerHTML=note; actionTd.appendChild(n); }
+      tr.appendChild(actionTd);
+      tbl.appendChild(tr);
+    });
+
+    if (!d.documents.length) {
+      tbl.innerHTML += '<tr><td colspan="5" class="mu" style="text-align:center;">No document requests found.</td></tr>';
+    }
+    tableWrapper.appendChild(tbl);
+    card.appendChild(tableWrapper);
+    v.appendChild(card);
+  },
+
+  documents: function(v, d) {
+    var formCard = document.createElement('div');
+    formCard.className = 'card';
+    formCard.innerHTML = 
+      '<h3>Request Official Barangay Document</h3>' +
+      '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-bottom:12px;">' +
+        '<div><label>Document Type</label><select id="dt">' + options.fees.map(function(f){ return '<option value="' + esc(f.documentType) + '">' + esc(f.documentType) + ' (' + (f.fee === 0 ? 'FREE' : peso(f.fee)) + ')</option>'; }).join('') + '</select></div>' +
+        '<div><label>Purpose</label><input id="dp" placeholder="e.g., Employment, Loan, ID Application"></div>' +
+      '</div>' +
+      '<button id="db">Submit Request</button>';
+    v.appendChild(formCard);
+
+    document.getElementById('db').onclick = function(){
+      send('/me/documents',{
+        documentType: document.getElementById('dt').value,
+        purpose: document.getElementById('dp').value
+      },'Document request created! Choose Pay Online or Pay Cash in the Payments menu.', function(){
+        showTab('payments');
+      });
+    };
+  },
+
+  complaints: function(v, d) {
+    var formCard = document.createElement('div');
+    formCard.className = 'card';
+    formCard.innerHTML = 
+      '<h3>File an Incident / Complaint</h3>' +
+      '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:12px;">' +
+        '<div><label>Incident Type</label><input id="ct" placeholder="e.g., Noise Disturbance, Property Boundary"></div>' +
+        '<div><label>Respondent / Person Involved</label><input id="cr" placeholder="Name or description"></div>' +
+        '<div><label>Date of Incident</label><input id="cd" type="date"></div>' +
+      '</div>' +
+      '<div style="margin-bottom:12px;"><label>Description / Details</label><textarea id="cx" rows="3" placeholder="Provide a brief summary of what happened..."></textarea></div>' +
+      '<button id="cb">Submit Complaint</button>';
+    v.appendChild(formCard);
+    document.getElementById('cd').max = today(); // an incident cannot have happened in the future
+
+    document.getElementById('cb').onclick = function(){
+      send('/me/complaints',{
+        incidentType: document.getElementById('ct').value,
+        respondentName: document.getElementById('cr').value,
+        dateOfIncident: document.getElementById('cd').value,
+        description: document.getElementById('cx').value
+      },'Complaint submitted. Barangay officials will review your filing.');
+    };
+  },
+
+  appointments: function(v, d) {
+    var formCard = document.createElement('div');
+    formCard.className = 'card';
+    formCard.innerHTML = 
+      '<h3>Scheduled Office Appointments</h3>' +
+      '<p class="mu" style="font-size:13px; margin-bottom:16px;">Appointments scheduled for cash payment or document collection at the Barangay Hall.</p>';
+
+    var ul = document.createElement('ul');
+    ul.style.paddingLeft = '20px';
+
+    d.appointments.forEach(function(x){
+      var li = document.createElement('li');
+      li.style.marginBottom = '10px';
+      li.innerHTML = '<b>' + x.purpose + '</b> — Date: <u>' + String(x.scheduledDate).slice(0,10) + '</u> at ' + (x.scheduledTime || 'Office Hours') + ' <span class="badge b-info">' + x.status + '</span>';
+      ul.appendChild(li);
+    });
+
+    if(!ul.children.length) {
+      ul.innerHTML = '<li class="mu">No scheduled appointments.</li>';
+    }
+
+    formCard.appendChild(ul);
+    v.appendChild(formCard);
+  },
+
+  announcements: function(v, d) {
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = '<h3>Official Barangay Announcements</h3>';
+    var ul = document.createElement('ul');
+    ul.style.paddingLeft = '20px';
+
+    api('GET','/announcements').then(function(r){
+      if(!r.ok) return;
+      r.d.forEach(function(x){
+        var li = document.createElement('li');
+        li.style.marginBottom = '12px';
+        li.innerHTML = '<b>' + (x.priority && x.priority !== 'Normal' ? '[' + esc(String(x.priority).toUpperCase()) + '] ' : '') + esc(x.title) + '</b><br><span class="mu">' + esc(x.messageBody) + '</span>';
+        ul.appendChild(li);
+      });
+      if(!ul.children.length) ul.innerHTML = '<li class="mu">No active announcements.</li>';
+      card.appendChild(ul);
+      v.appendChild(card);
+    });
+  },
+
+  profile: function(v, d) {
+    var prof = d.profile;
+    var fn = prof.firstName || '', ln = prof.lastName || '';
+    var initials = (fn.charAt(0) + ln.charAt(0)).toUpperCase() || 'R';
+    
+    var card = document.createElement('div');
+    card.className = 'card profile-card';
+    card.style.maxWidth = '680px';
+    card.innerHTML = 
+      '<div style="display: flex; gap: 16px; align-items: center; margin-bottom: 20px;">' +
+        '<div class="avatar-box" style="width: 64px; height: 64px; font-size: 24px;">' + initials + '</div>' +
+        '<div>' +
+          '<h3 style="margin: 0; font-size: 20px;">' + fn + ' ' + ln + '</h3>' +
+          '<span class="badge ' + (prof.recordStatus === 'Moved' ? 'b-bad' : 'b-ok') + '">' + (prof.recordStatus === 'Moved' ? 'Moved Out' : 'Verified Resident') + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<hr style="border: 0; border-top: 1px solid var(--ln); margin: 16px 0;">' +
+      '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; font-size: 13px;">' +
+        '<div><b class="mu" style="display: block; font-size: 11px;">RESIDENT RECORD ID</b><span>#' + (prof.residentId || '-') + '</span></div>' +
+        '<div><b class="mu" style="display: block; font-size: 11px;">GENDER & CIVIL STATUS</b><span>' + (prof.gender || '-') + ' / ' + (prof.civilStatus || '-') + '</span></div>' +
+        '<div><b class="mu" style="display: block; font-size: 11px;">BIRTH DATE</b><span>' + (prof.birthDate ? String(prof.birthDate).slice(0, 10) : '-') + '</span></div>' +
+        '<div><b class="mu" style="display: block; font-size: 11px;">MOBILE NUMBER</b><span>' + (prof.contactNumber || 'N/A') + '</span></div>' +
+        '<div style="grid-column: 1 / -1;"><b class="mu" style="display: block; font-size: 11px;">REGISTERED HOUSEHOLD ADDRESS</b><span>' + (prof.household ? prof.household.addressDetails + ', ' + prof.household.purokZone : 'Address on File') + '</span></div>' +
+      '</div>';
+    
+    v.appendChild(card);
+  }
+};
+
+if(paidId) say('Thank you! Please sign in to confirm your payment and print your certificate.', true);
+})();
+</script>
+</body>
+</html>

@@ -43,6 +43,7 @@ enum RequestStatus {
   Ready
   Claimed
   Rejected
+  Cancelled
 }
 
 enum PermitStatus {
@@ -62,6 +63,7 @@ enum PaymentMethod {
   Cash
   GCash
   Maya
+  PayMongo
 }
 
 enum TransactionType {
@@ -105,7 +107,7 @@ model StaffOfficial {
   announcements    Announcement[]
   processedDocs    DocumentRequest[]
   approvedPermits  BusinessPermit[]
-  recordedBlotters IncidentBlotter[]
+  recordedBlotters   IncidentBlotter[]
   createdPrograms    BarangayProgram[]
   recordedAttendance ResidentProgram[]
 }
@@ -148,10 +150,9 @@ model Resident {
   birthDate     DateTime             @db.Date
   gender        Gender?
   civilStatus   String?
-  address       String?
-  purokZone     String?
   contactNumber String?
   qrCodeString  String?              @unique
+  residentCode  String?              @unique // BB-000123, filled in by the database from residentId
   recordStatus  ResidentRecordStatus @default(Active)
 
   account   PublicAccount? @relation(fields: [accountId], references: [accountId])
@@ -161,11 +162,12 @@ model Resident {
   filedBlotters    IncidentBlotter[]
   documentRequests DocumentRequest[]
   businessPermits  BusinessPermit[]
-  blotterRoles BlotterParty[]
-  programs     ResidentProgram[]
+  blotterRoles     BlotterParty[]
+  programs         ResidentProgram[]
 }
 
 model Announcement {
+  priority String @default("Normal")
   announcementId  Int      @id @default(autoincrement())
   postedByStaffId Int
   title           String
@@ -175,6 +177,7 @@ model Announcement {
 
   postedBy StaffOfficial @relation(fields: [postedByStaffId], references: [staffId])
 }
+
 
 model Appointment {
   appointmentId Int      @id @default(autoincrement())
@@ -190,7 +193,7 @@ model Appointment {
 model IncidentBlotter {
   caseId               Int                  @id @default(autoincrement())
   complainantId        Int
-  recordedByStaffId    Int
+  recordedByStaffId    Int?
   respondentName       String
   incidentType         String
   description          String
@@ -199,11 +202,12 @@ model IncidentBlotter {
   dateOfIncident       DateTime
 
   complainant Resident      @relation(fields: [complainantId], references: [residentId])
-  recordedBy  StaffOfficial @relation(fields: [recordedByStaffId], references: [staffId])
-   parties BlotterParty[]
+  recordedBy  StaffOfficial? @relation(fields: [recordedByStaffId], references: [staffId])
+  parties BlotterParty[]
 }
 
 model DocumentRequest {
+  verificationCode String? @unique
   requestId          Int           @id @default(autoincrement())
   residentId         Int
   processedByStaffId Int?
@@ -241,6 +245,7 @@ model Payment {
   paymentMethod   PaymentMethod
   paymentStatus   PaymentStatus   @default(Unpaid)
   datePaid        DateTime?
+  checkoutSessionId String?
 
   documentRequest DocumentRequest? @relation(fields: [requestId], references: [requestId])
   businessPermit  BusinessPermit?  @relation(fields: [permitId], references: [permitId])
