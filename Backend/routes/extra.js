@@ -2,6 +2,7 @@
 // Registered from server.js with:  require('./routes/extra')(app, prisma);
 // Every body is whitelisted with pick() so a client cannot write columns it should not touch.
 
+const bcrypt = require('bcryptjs');
 const { pick, int, handle, checkNotPast, cleanName, findDuplicateResident, duplicateMessage } = require('../utils');
 
 const timeOnly = (hhmm) => new Date(`1970-01-01T${hhmm}:00Z`);
@@ -51,6 +52,25 @@ module.exports = function registerExtraRoutes(app, prisma) {
       throw e;
     }
     res.status(201).json(resident);
+  }));
+
+  // Staff creates the online (portal) account for a resident who is already in the registry.
+  // Admin and Staff only (see middleware/auth.js). The resident can change nothing about the record, only log in.
+  app.post('/api/residents/:id/account', handle(async (req, res) => {
+    const id = int(req.params.id);
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    const resident = await prisma.resident.findUnique({ where: { residentId: id } });
+    if (!resident) return res.status(404).json({ error: 'Resident not found.' });
+    if (resident.accountId) return res.status(409).json({ error: 'This resident already has an online account.' });
+    const taken = await prisma.publicAccount.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } });
+    if (taken) return res.status(409).json({ error: 'That email is already used by another account.' });
+    await prisma.publicAccount.create({
+      data: { email, passwordHash: await bcrypt.hash(password, 10), residentProfile: { connect: { residentId: id } } },
+    });
+    res.status(201).json({ message: 'Online account created. The resident can now sign in at the Resident Portal.' });
   }));
 
   // ---------------- HOUSEHOLDS ----------------
