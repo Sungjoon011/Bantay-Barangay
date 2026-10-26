@@ -48,6 +48,7 @@ module.exports = function registerPayMongoRoutes(app, prisma) {
     });
     if (!doc || !doc.payment) return res.status(404).json({ error: 'No payment is due for this document yet.' });
     if (['Rejected', 'Cancelled'].includes(doc.status)) return res.status(400).json({ error: `This request was ${doc.status.toLowerCase()}.` });
+    if (doc.payment.paymentStatus === 'Cancelled') return res.status(400).json({ error: 'This fee was cancelled by the Barangay Hall. Please contact the office.' });
     if (doc.payment.paymentStatus !== 'Unpaid') return res.status(400).json({ error: 'This document is already paid.' });
     const centavos = Math.round(Number(doc.payment.amount) * 100);
     if (!(centavos > 0)) return res.status(400).json({ error: 'This document is free of charge.' });

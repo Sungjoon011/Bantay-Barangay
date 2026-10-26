@@ -55,19 +55,24 @@
 <script src="announce-popup.js"></script>
 <script>
 (function(){'use strict';
+var SS={get:function(k){try{return sessionStorage.getItem(k)}catch(e){return null}},set:function(k,v){try{sessionStorage.setItem(k,v)}catch(e){}},del:function(k){try{sessionStorage.removeItem(k)}catch(e){}}};
 var token=null,role=null,uid=null,lastHousehold=null,$=function(i){return document.getElementById(i)};
 function h(t,a,k){var e=document.createElement(t);a=a||{};Object.keys(a).forEach(function(n){if(n==='on')Object.keys(a.on).forEach(function(v){e.addEventListener(v,a.on[v])});else if(n==='text')e.textContent=a.text;else e.setAttribute(n,a[n])});(k||[]).forEach(function(c){e.appendChild(typeof c==='string'?document.createTextNode(c):c)});return e}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function say(m,ok){var t=$('toast');t.textContent=m;t.style.background=ok?'var(--ok)':'var(--bad)';t.style.display='block';setTimeout(function(){t.style.display='none'},3500)}
+var lastReq=null;
 function api(m,p,b){var o={method:m,headers:{'Content-Type':'application/json'}};if(token)o.headers.Authorization='Bearer '+token;if(b)o.body=JSON.stringify(b);
- return fetch('/api'+p,o).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})})}
+ return lastReq=fetch('/api'+p,o).then(function(r){return r.json().then(function(d){if(r.status===401&&token){SS.del('bb_staff_token');location.reload()}return{ok:r.ok,d:d}})})}
 function done(okMsg,again){return function(r){say(r.ok?okMsg:(r.d.error||'Error'),r.ok);if(r.ok&&again)again()}}
 function bcls(v){v=String(v);return /^(Claimed|Resolved|Paid|Active|Attended|Approved)/.test(v)?'b-ok':/^(Pending|Open|Unpaid|Registered|Upcoming)/.test(v)?'b-warn':/^(Processing|Ongoing|Ready)/.test(v)?'b-info':/^(Rejected|Cancelled|Banned|NoShow)/.test(v)?'b-bad':'b-mu'}
 function table(rows,cols,act){var t=h('table'),hr=h('tr');cols.forEach(function(c){hr.appendChild(h('th',{text:c[0]}))});if(act)hr.appendChild(h('th'));t.appendChild(hr);
  rows.forEach(function(r){var tr=h('tr');cols.forEach(function(c){var v=c[1](r),td=h('td');if(c[0]==='Status'||c[0]==='Payment')td.appendChild(h('span',{class:'badge '+bcls(v),text:v}));else td.textContent=v;tr.appendChild(td)});if(act){var td=h('td');act(r).forEach(function(b){td.appendChild(b)});tr.appendChild(td)}t.appendChild(tr)});
  if(!rows.length)t.appendChild(h('tr',{},[h('td',{text:'Nothing here yet.',class:'mu'})]));return h('div',{class:'tw'},[t])}
-function form(fields,label,fn){var f=h('form');fields.forEach(function(x){var i;if(x[2]==='select'){i=h('select',{name:x[0]});x[3].forEach(function(o){i.appendChild(h('option',{value:o[0],text:o[1]}))})}else if(x[2]==='textarea')i=h('textarea',{name:x[0],rows:'3'});else i=h('input',{name:x[0],type:x[2]||'text'});f.appendChild(h('div',{},[h('label',{text:x[1]}),i]))});
- f.appendChild(h('button',{text:label}));f.addEventListener('submit',function(e){e.preventDefault();var d={};fields.forEach(function(x){d[x[0]]=f.elements[x[0]].value});fn(d,f)});return f}
+function form(fields,label,fn){var f=h('form');fields.forEach(function(x){var i;if(x[2]==='select'){i=h('select',{name:x[0]});x[3].forEach(function(o){i.appendChild(h('option',{value:o[0],text:o[1]}))})}else if(x[2]==='textarea')i=h('textarea',{name:x[0],rows:'7',style:'min-height:150px;resize:vertical;line-height:1.5',placeholder:x[3]||''});else i=h('input',{name:x[0],type:x[2]||'text'});var wide=x[2]==='textarea'||(fields[1]&&fields[1][2]==='textarea'&&x===fields[0]);f.appendChild(h('div',wide?{style:'grid-column:1/-1'}:{},[h('label',{text:x[1]}),i]))});
+ var sb=h('button',{text:label});f.appendChild(sb);var busy=false;f.addEventListener('submit',function(e){e.preventDefault();if(busy)return; // ignore repeat clicks while the first one is still being saved
+ var d={};fields.forEach(function(x){d[x[0]]=f.elements[x[0]].value});busy=true;sb.disabled=true;var before=lastReq;var rel=function(){busy=false;sb.disabled=false};
+ try{fn(d,f)}catch(err){rel();throw err}
+ if(lastReq&&lastReq!==before)lastReq.then(rel,rel);else rel()});return f}
 function card(t,k){return h('div',{class:'card'},[h('h3',{text:t})].concat(k))}
 function btn(t,fn,c){return h('button',{text:t,class:c||'alt',on:{click:fn}})}
 function opts(rows,v,l){return rows.map(function(r){return[r[v],l(r)]})}
@@ -77,12 +82,13 @@ function editCard(v,title,fields,vals,save){var old=$('editcard');if(old)old.rem
 function nm(r){return r?r.firstName+' '+r.lastName:''}
 function date(v){return v?String(v).slice(0,10):''}
 
-// LOGIN
-$('lf').addEventListener('submit',function(e){e.preventDefault();api('POST','/login',{email:$('em').value,password:$('pw').value}).then(function(r){
- if(!r.ok){say(r.d.error||'Login failed');return}token=r.d.token;var p=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));role=p.role;uid=p.accountId;
+// LOGIN (the token is kept in sessionStorage so a page reload does not log you out; closing the tab or Log out clears it)
+function enter(email){var p=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));role=p.role;uid=p.accountId;
  $('login').classList.add('hide');$('app').classList.remove('hide');
- var o=h('button',{text:'Log out',class:'alt',on:{click:function(){location.reload()}}}),adv=h('a',{href:'/console.html',text:'Advanced Console ',class:'mu',style:'margin-right:10px; font-weight:600;'});
- $('who').textContent=$('em').value+' · '+role+' ';$('who').appendChild(adv);$('who').appendChild(o);nav();show('home');banner()})});
+ var o=h('button',{text:'Log out',class:'alt',on:{click:function(){SS.del('bb_staff_token');SS.del('bb_staff_email');token=null;location.reload()}}}),adv=h('a',{href:'/console.html',text:'Advanced Console ',class:'mu',style:'margin-right:10px; font-weight:600;'});
+ $('who').textContent=email+' · '+role+' ';$('who').appendChild(adv);$('who').appendChild(o);nav();show('home');banner()}
+$('lf').addEventListener('submit',function(e){e.preventDefault();api('POST','/login',{email:$('em').value,password:$('pw').value}).then(function(r){
+ if(!r.ok){say(r.d.error||'Login failed');return}token=r.d.token;SS.set('bb_staff_token',token);SS.set('bb_staff_email',$('em').value);enter($('em').value)})});
 var bannerTimer=null;
 function banner(){if(!bannerTimer)bannerTimer=setInterval(banner,60000); // new announcements pop up without a refresh
  api('GET','/announcements').then(function(r){if(!r.ok)return;var a=r.d.filter(function(x){return x.priority==='Emergency'})[0];if(a){$('alert').style.display='block';$('alert').textContent='EMERGENCY: '+a.title+' - '+a.messageBody}
@@ -147,15 +153,14 @@ var VIEWS={
      else{if(r.d&&r.d.existingHouseholdId)lastHousehold=r.d.existingHouseholdId;say(r.d.error||'Error',false);if(lastHousehold)show('residents')}})})]));
    var resForm=form([['householdId','Household Address','select',hh.length?opts(hh,'householdId',function(x){return x.addressDetails+' ('+x.purokZone+')'}):[['','No household yet - register one above first']]],['firstName','First Name'],['lastName','Surname'],['birthDate','Birth Date','date'],['gender','Gender','select',[['Male','Male'],['Female','Female'],['Other','Other']]],['civilStatus','Civil Status','select',[['Single','Single'],['Married','Married'],['Widowed','Widowed']]],['contactNumber','Mobile No.']],'Register Resident',function(d){
      if(!d.householdId){say('Register a household first, then pick it here.',false);return}
-     api('POST','/residents',d).then(done('Resident added. Use "Create Account" in the list below to give them an online login.',function(){show('residents')}))});
+     api('POST','/residents',d).then(done('Resident added.',function(){show('residents')}))});
    if(lastHousehold&&resForm.elements.householdId)resForm.elements.householdId.value=String(lastHousehold);
    v.appendChild(card('Add Resident Record',[resForm]));
    v.appendChild(list);api('GET','/residents').then(function(r){list.appendChild(table(r.d||[],[['#',function(x){return x.residentId}],['Name',nm],['Birth Date',function(x){return date(x.birthDate)}],['Household Address',function(x){return x.household?x.household.addressDetails+', '+x.household.purokZone:''}],['Mobile No.',function(x){return x.contactNumber||''}],['Online Account',function(x){return x.accountId?'Has account':'None yet'}],['Status',function(x){return x.recordStatus}]],function(x){
      var b=[btn('Edit',function(){editCard(v,'Edit Resident #'+x.residentId+' - '+nm(x),[['firstName','First Name'],['lastName','Surname'],['birthDate','Birth Date','date'],['gender','Gender','select',[['Male','Male'],['Female','Female'],['Other','Other']]],['civilStatus','Civil Status','select',[['Single','Single'],['Married','Married'],['Widowed','Widowed']]],['contactNumber','Mobile No.'],['householdId','Household Address','select',opts(hh,'householdId',function(q){return q.addressDetails+' ('+q.purokZone+')'})],['recordStatus','Record Status','select',[['Active','Active'],['Moved','Moved'],['Deceased','Deceased']]]],
        {firstName:x.firstName,lastName:x.lastName,birthDate:date(x.birthDate),gender:x.gender,civilStatus:x.civilStatus,contactNumber:x.contactNumber||'',householdId:x.householdId,recordStatus:x.recordStatus},
        function(d){api('PUT','/residents/'+x.residentId,d).then(done('Resident updated',function(){show('residents')}))})})];
-     if(!x.accountId&&x.recordStatus==='Active')b.push(btn('Create Account',function(){var em=prompt('Email for '+nm(x)+"'s online account:");if(!em)return;var pw=prompt('Temporary password (at least 8 characters):');if(!pw)return;
-       api('POST','/residents/'+x.residentId+'/account',{email:em,password:pw}).then(done('Online account created',function(){show('residents')}))}));
+     if(role==='Admin'&&x.recordStatus!=='Moved')b.push(btn('Remove',function(){if(confirm('Remove '+nm(x)+' from the directory? The record is kept and marked as Moved.'))api('DELETE','/residents/'+x.residentId).then(done('Resident removed',function(){show('residents')}))},'bad'));
      return b}))})})
  },
  documents:function(v){api('GET','/residents').then(function(rs){api('GET','/fees').then(function(fs){
@@ -203,11 +208,11 @@ var VIEWS={
   api('GET','/households').then(function(hh){
    var seen={};(hh.d||[]).forEach(function(x){if(x.purokZone)seen[x.purokZone]=1});
    var aud=[['All','Everyone - all accounts (staff and residents)'],['Residents','All residents']].concat(Object.keys(seen).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true})}).map(function(p){return[p,'Only '+p]}));
-   v.appendChild(card('Post Announcement',[form([['title','Title'],['messageBody','Message','textarea'],['targetAudience','Who should see it?','select',aud],['priority','Priority','select',[['Normal','Normal'],['Important','Important'],['Emergency','Emergency (red banner for 3 days)']]]],'Post Announcement',function(d){api('POST','/announcements',d).then(done('Announcement posted',function(){show('announcements')}))})]));
+   v.appendChild(card('Post Announcement',[form([['title','Title'],['messageBody','Message','textarea','Write the announcement here...'],['targetAudience','Who should see it?','select',aud],['priority','Priority','select',[['Normal','Normal'],['Important','Important'],['Emergency','Emergency (red banner for 3 days)']]]],'Post Announcement',function(d){api('POST','/announcements',d).then(done('Announcement posted',function(){show('announcements')}))})]));
    var c=card('Announcements',[]);v.appendChild(c);
    api('GET','/announcements').then(function(r){c.appendChild(table(r.d||[],[['Date',function(a){return date(a.datePosted)}],['Title',function(a){return a.title}],['Message',function(a){return a.messageBody}],['For',function(a){return audLabel(a.targetAudience)}],['Priority',function(a){return a.priority}],['Posted by',function(a){return a.postedByName||''}]],function(a){
      if(!a.canManage)return[];
-     return[btn('Edit',function(){var t=prompt('Title:',a.title);if(t===null)return;var m=prompt('Message:',a.messageBody);if(m===null)return;api('PUT','/announcements/'+a.announcementId,{title:t,messageBody:m}).then(done('Announcement updated',function(){show('announcements')}))}),
+     return[btn('Edit',function(){editCard(v,'Edit Announcement #'+a.announcementId,[['title','Title'],['messageBody','Message','textarea']],{title:a.title,messageBody:a.messageBody},function(d){api('PUT','/announcements/'+a.announcementId,d).then(done('Announcement updated',function(){show('announcements')}))})}),
             btn('Delete',function(){if(confirm('Delete this announcement?'))api('DELETE','/announcements/'+a.announcementId).then(done('Announcement deleted',function(){show('announcements')}))},'bad')]}))})})
  },
  fees:function(v){var c=card('Document Fee Configuration',[]);v.appendChild(c);api('GET','/fees').then(function(r){c.appendChild(table(r.d||[],[['Document Type',function(f){return f.documentType}]],function(f){var i=h('input',{type:'number',value:f.fee,style:'width:110px'});return[i,btn('Update Fee',function(){api('PUT','/fees/'+encodeURIComponent(f.documentType),{fee:i.value}).then(done('Fee updated'))},'')]
@@ -215,6 +220,8 @@ var VIEWS={
  },
  audit:function(v){var c=card('System Audit Logs (Trigger System)',[]);v.appendChild(c);api('GET','/audit-logs').then(function(r){c.appendChild(table(r.d||[],[['Timestamp',function(a){return String(a.timestamp).replace('T',' ').slice(0,19)}],['Account ID',function(a){return a.accountId==null?'-':a.accountId}],['Action',function(a){return a.actionPerformed}],['Affected Table',function(a){return a.tableAffected}]]))})}
 };
+(function restore(){var t=SS.get('bb_staff_token');if(!t)return;try{var p=JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));if(p.exp&&p.exp*1000<Date.now()){SS.del('bb_staff_token');return}
+ if(p.role==='Resident'||!MENU[p.role]){SS.del('bb_staff_token');return}token=t;enter(SS.get('bb_staff_email')||'')}catch(e){SS.del('bb_staff_token')}})();
 })();
 </script>
 </body>

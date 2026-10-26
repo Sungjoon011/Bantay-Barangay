@@ -58,6 +58,8 @@
             <button class="alt" id="refreshBtn">Refresh List</button>
           </div>
         </div>
+        <div id="resSummary" class="stats hide" style="margin: 12px 0 0;"></div>
+        <div id="resFilters" class="row hide" style="margin-top:12px; gap:6px;"></div>
         <div class="tw" style="margin-top:12px"><table id="tbl"></table></div>
         <p class="mu" id="count" style="margin-bottom: 0; font-size: 12px;"></p>
       </div>
@@ -133,7 +135,8 @@
 (function () {
   'use strict';
 
-  var token = null, role = null, current = null, selectedResidentData = null;
+  var SS = { get:function(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}, set:function(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}, del:function(k){try{sessionStorage.removeItem(k);}catch(e){}} };
+  var token = null, role = null, current = null, selectedResidentData = null, filterVal = '', lastRows = [];
 
   var RES = {
     residents:     { label:'Residents', id:'residentId', create:true, update:true, del:true, search:true,
@@ -146,8 +149,9 @@
                      hint:'Use Process to move the workflow (stored procedure) and Pay to record the payment.',
                      extra:[ { label:'Process…', run:processDocModal }, { label:'Pay…', run:payDocModal }, { label:'Print Certificate', run:printCertificate } ] },
     blotters:      { label:'Blotters', id:'caseId', create:true, update:true,
-                     tpl:{ dateOfIncident:'2026-10-18', incidentType:'Noise Complaint', complainantResidentId:1, respondentName:'Pedro Reyes', description:'Loud karaoke past 10PM', recordedByStaffId:1 },
-                     hint:'Staff only see Standard cases; Admin and Official see all.',
+                     tpl:{ dateOfIncident:'2026-10-18', incidentType:'Complaint Report: Noise Disturbance (e.g., videoke)', complainantResidentId:1, respondentName:'Pedro Reyes', description:'Loud karaoke past 10PM', recordedByStaffId:1 },
+                     hint:'Staff only see Standard cases; Admin and Official see all. incidentType format: "Complaint Report: <category>" or "Incident Report: <category>" (same as the resident form).',
+                     prep:prepBlotters, filters:['Complaint','Incident'],
                      extra:[ { label:'Add party…', run:addPartyModal }, { label:'Case history', run:function () { var id = needId(); if (id) api('GET', '/blotters/' + id + '/history'); } } ] },
     programs:      { label:'Programs', id:'programId', create:true,
                      tpl:{ createdByStaffId:1, title:'Feeding Program', description:'Monthly feeding', venue:'Barangay Hall', programDate:ymd(7) },
@@ -158,7 +162,8 @@
     permits:       { label:'Permits', id:'permitId', create:true, update:true,
                      tpl:{ residentId:1, businessName:'Sari-sari Store', businessType:'Retail', applicationDate:ymd(0) },
                      extra:[ { label:'Set status…', run:permitStatusModal } ] },
-    payments:      { label:'Payments', id:'paymentId', hint:'Read only. Payments are created by the stored procedures.' },
+    payments:      { label:'Payments & Revenue', id:'paymentId', prep:preparePayments, summary:paymentSummary, cell:paymentCell, filters:['Paid','Unpaid','Cancelled'], filterKey:'paymentStatus',
+                     hint:'Payments are created with each document request. Use Collect Fee to mark a fee Paid, or Cancel to void it (a cancelled fee can be reopened; a Paid one is final).' },
     announcements: { label:'Announcements', id:'announcementId', create:true, update:true, del:true,
                      tpl:{ title:'Clean-up drive', messageBody:'Saturday 7AM at the plaza.', targetAudience:'All', priority:'Normal' },
                      extra:[ { label:'Post announcement…', run:postAnnouncementModal } ],
@@ -189,6 +194,7 @@
       return r.text().then(function (t) {
         var data; try { data = JSON.parse(t); } catch (e) { data = t; }
         show(method + ' /api' + path + '  →  ' + r.status + (r.ok ? ' OK' : ' ERROR') , data, r.ok);
+        if (r.status === 401 && token) { SS.del('bb_staff_token'); location.reload(); }
         return { ok: r.ok, status: r.status, data: data };
       });
     });
@@ -201,19 +207,25 @@
     log.style.color = ok ? '#38bdf8' : '#f87171';
   }
 
-  // LOGIN
+  // LOGIN (token kept in sessionStorage so a reload does not log you out; Logout or closing the tab clears it)
+  function enter(email) {
+    try { role = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role; } catch (e) { role = '?'; }
+    var who = $('who'); who.textContent = '';
+    var s1 = document.createElement('span'); s1.textContent = email;
+    var s2 = document.createElement('span'); s2.style.cssText = 'background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:4px; font-weight:600;'; s2.textContent = role;
+    who.appendChild(s1); who.appendChild(document.createTextNode(' ')); who.appendChild(s2);
+    var out = document.createElement('button'); out.className = 'alt'; out.style.padding = '4px 10px'; out.style.fontSize = '12px'; out.textContent = 'Logout';
+    out.onclick = function () { SS.del('bb_staff_token'); SS.del('bb_staff_email'); token = null; location.reload(); };
+    who.appendChild(out);
+    $('loginBox').classList.add('hide'); $('appBox').classList.remove('hide');
+    buildTabs(); loadStats(); openRes(firstTab());
+  }
   $('loginBtn').onclick = function () {
     $('loginMsg').textContent = '';
     api('POST', '/login', { email: $('email').value, password: $('password').value }).then(function (r) {
       if (!r.ok || !r.data.token) { $('loginMsg').textContent = (r.data && r.data.error) || 'Login failed'; return; }
-      token = r.data.token;
-      try { role = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).role; } catch (e) { role = '?'; }
-      $('who').innerHTML = '<span>' + $('email').value + '</span> <span style="background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:4px; font-weight:600;">' + role + '</span>';
-      var out = document.createElement('button'); out.className = 'alt'; out.style.padding = '4px 10px'; out.style.fontSize = '12px'; out.textContent = 'Logout';
-      out.onclick = function () { token = null; location.reload(); };
-      $('who').appendChild(out);
-      $('loginBox').classList.add('hide'); $('appBox').classList.remove('hide');
-      buildTabs(); loadStats(); openRes(firstTab());
+      token = r.data.token; SS.set('bb_staff_token', token); SS.set('bb_staff_email', $('email').value);
+      enter($('email').value);
     });
   };
   $('password').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('loginBtn').click(); });
@@ -272,6 +284,7 @@
   function openRes(k) {
     current = k; var r = RES[k];
     hideProfilePanel();
+    filterVal = '';
     Array.prototype.forEach.call($('tabs').children, function (b) { b.classList.toggle('on', b.dataset.k === k); });
     $('resTitle').textContent = r.label;
     $('search').classList.toggle('hide', !r.search); $('search').value = '';
@@ -326,7 +339,7 @@
   $('quickBlotterBtn').onclick = function () {
     if (!selectedResidentData) return;
     openRes('blotters');
-    $('body').value = JSON.stringify({ dateOfIncident: new Date().toISOString().slice(0, 10), incidentType: 'General Incident', complainantResidentId: selectedResidentData.residentId || 1, respondentName: '', description: '' }, null, 2);
+    $('body').value = JSON.stringify({ dateOfIncident: new Date().toISOString().slice(0, 10), incidentType: 'Incident Report: Other Incident', complainantResidentId: selectedResidentData.residentId || 1, respondentName: '', description: '' }, null, 2);
   };
 
   function load() {
@@ -334,8 +347,12 @@
     var path = '/' + current + (r.search && $('search').value ? '?q=' + encodeURIComponent($('search').value) : '');
     api('GET', path).then(function (res) {
       var tbl = $('tbl'); tbl.textContent = '';
-      if (!res.ok || !Array.isArray(res.data)) { $('count').textContent = 'No data available.'; return; }
-      var rows = res.data; $('count').textContent = rows.length + ' record(s) found';
+      if (!res.ok || !Array.isArray(res.data)) { $('count').textContent = 'No data available.'; $('resSummary').classList.add('hide'); $('resFilters').classList.add('hide'); return; }
+      var rows = r.prep ? r.prep(res.data) : res.data; lastRows = rows;
+      renderFilters(r, rows);
+      renderSummary(r, rows);
+      if (r.filters) rows = rows.filter(function (x) { return !filterVal || x[r.filterKey || 'Type'] === filterVal; });
+      $('count').textContent = rows.length + ' record(s) found';
       if (!rows.length) return;
       var cols = Object.keys(rows[0]);
       var head = document.createElement('tr');
@@ -345,7 +362,7 @@
         var tr = document.createElement('tr'); tr.className = 'pick';
         cols.forEach(function (c) {
           var td = document.createElement('td'); var v = row[c];
-          td.textContent = v === null ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
+          if (!(r.cell && r.cell(td, c, v, row))) td.textContent = v === null || v === undefined ? '' : (typeof v === 'object' ? JSON.stringify(v) : String(v));
           tr.appendChild(td);
         });
         tr.onclick = function () {
@@ -380,6 +397,102 @@
   
   function done(r) { if (r.ok) { load(); loadStats(); } }
   $('clearLog').onclick = function () { $('log').textContent = 'Log cleared.'; };
+
+
+  // ---------- TABLE HELPERS (filters, summary tiles, custom cells) ----------
+  function badge(text, cls) { var b = document.createElement('span'); b.className = 'badge ' + cls; b.textContent = text; return b; }
+  function peso(n) { return '₱' + Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  function renderFilters(r, rows) {
+    var box = $('resFilters'); box.textContent = '';
+    box.classList.toggle('hide', !r.filters);
+    if (!r.filters) return;
+    var key = r.filterKey || 'Type';
+    [''].concat(r.filters).forEach(function (f) {
+      var n = f ? rows.filter(function (x) { return x[key] === f; }).length : rows.length;
+      var b = document.createElement('button'); b.className = f === filterVal ? '' : 'alt'; b.style.cssText = 'padding:5px 12px; font-size:12px;';
+      b.textContent = (f || 'All') + ' (' + n + ')';
+      b.onclick = function () { filterVal = f; load(); };
+      box.appendChild(b);
+    });
+  }
+
+  function renderSummary(r, rows) {
+    var box = $('resSummary'); box.textContent = '';
+    var tiles = r.summary ? r.summary(rows) : null;
+    box.classList.toggle('hide', !tiles);
+    (tiles || []).forEach(function (t) {
+      var d = document.createElement('div'); d.className = 'stat'; if (t[2]) d.style.borderLeftColor = t[2];
+      var b = document.createElement('b'); b.textContent = t[1];
+      var s = document.createElement('span'); s.textContent = t[0];
+      d.appendChild(b); d.appendChild(s); box.appendChild(d);
+    });
+  }
+
+  // BLOTTERS: split incidentType ("Complaint Report: Noise Disturbance") into Type + Category, like the resident form
+  function splitIncidentType(t) {
+    var s = String(t || '');
+    var m = s.match(/^\s*(Incident|Complaint)\s+Report\s*:\s*(.*)$/i);
+    if (m) return { type: m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase(), category: m[2] || 'Uncategorized' };
+    // older records typed by staff, e.g. "Noise Complaint": best guess from the wording
+    return { type: /complaint|dispute|noise|debt|utang|nuisance/i.test(s) ? 'Complaint' : 'Incident', category: s || 'Uncategorized' };
+  }
+  function prepBlotters(rows) {
+    return rows.map(function (x) {
+      var sp = splitIncidentType(x.incidentType), out = {};
+      Object.keys(x).forEach(function (k) {
+        if (k === 'incidentType') { out.Type = sp.type; out.Category = sp.category; }
+        else out[k] = x[k];
+      });
+      if (!('Type' in out)) { out.Type = sp.type; out.Category = sp.category; }
+      return out;
+    });
+  }
+
+  // PAYMENTS: Status badge + per-transaction actions
+  function preparePayments(rows) {
+    return rows.map(function (x) { var o = {}; Object.keys(x).forEach(function (k) { o[k] = x[k]; }); o.actions = ''; return o; });
+  }
+  function paymentSummary(rows) {
+    var sum = { Paid: [0, 0], Unpaid: [0, 0], Cancelled: [0, 0] };
+    rows.forEach(function (x) { var s = sum[x.paymentStatus]; if (s) { s[0]++; s[1] += Number(x.amount) || 0; } });
+    return [
+      ['Collected (' + sum.Paid[0] + ' paid)', peso(sum.Paid[1]), '#16a34a'],
+      ['Pending (' + sum.Unpaid[0] + ' unpaid)', peso(sum.Unpaid[1]), '#d97706'],
+      ['Cancelled (' + sum.Cancelled[0] + ')', peso(sum.Cancelled[1]), '#dc2626']
+    ];
+  }
+  function paymentCell(td, col, v, row) {
+    if (col === 'paymentStatus') {
+      td.appendChild(badge(v || '-', v === 'Paid' ? 'b-ok' : v === 'Cancelled' ? 'b-bad' : 'b-warn')); return true;
+    }
+    if (col === 'amount') { td.textContent = peso(v); return true; }
+    if (col === 'actions') {
+      var st = row.paymentStatus;
+      function btn(label, cls, fn) { var b = document.createElement('button'); b.textContent = label; if (cls) b.className = cls; b.onclick = function (e) { e.stopPropagation(); $('selId').value = row.paymentId; fn(); }; td.appendChild(b); }
+      if (st === 'Unpaid') { btn('Collect Fee', '', function () { collectFeeModal(row); }); btn('Cancel', 'bad', function () { cancelPayment(row); }); }
+      else if (st === 'Cancelled') { btn('Reopen', 'alt', function () { setPaymentStatus(row, { status: 'Unpaid' }, 'Reopen this payment as Unpaid?'); }); }
+      else td.textContent = '-';
+      return true;
+    }
+    return false;
+  }
+  function setPaymentStatus(row, body, confirmText) {
+    if (confirmText && !confirm(confirmText)) return;
+    api('PATCH', '/payments/' + row.paymentId + '/status', body).then(done);
+  }
+  function cancelPayment(row) {
+    setPaymentStatus(row, { status: 'Cancelled' }, 'Cancel payment #' + row.paymentId + ' (' + peso(row.amount) + ')? The fee will no longer be collectable.');
+  }
+  function collectFeeModal(row) {
+    var html = '<p class="mu" style="margin-top:0;">' + (row.residentName ? row.residentName + ' · ' : '') + (row.documentType || row.transactionType || 'Fee') + ' · <b>' + peso(row.amount) + '</b></p>' +
+               '<div class="form-group"><label>Official Receipt (OR) Number</label><input id="m_or" style="width:100%" value="OR-' + Math.floor(1000 + Math.random() * 9000) + '"></div>' +
+               '<div class="form-group"><label>Payment Method</label><select id="m_method" style="width:100%"><option>Cash</option><option>GCash</option><option>Maya</option></select></div>';
+    openModal('Collect Fee — Payment #' + row.paymentId, html, function () {
+      var or = $('m_or').value.trim(); if (!or) return false;
+      setPaymentStatus(row, { status: 'Paid', orNumber: or, method: $('m_method').value });
+    });
+  }
 
   // MODAL UTILITY
   function openModal(title, fieldsHtml, onSubmit) {
@@ -557,6 +670,16 @@
       })
       .catch(function () { show('Cannot print', 'Could not load the document from the server.', false); });
   }
+
+  // restore the session after a reload
+  (function () {
+    var t = SS.get('bb_staff_token'); if (!t) return;
+    try {
+      var p = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      if ((p.exp && p.exp * 1000 < Date.now()) || p.role === 'Resident') { SS.del('bb_staff_token'); return; }
+      token = t; enter(SS.get('bb_staff_email') || '');
+    } catch (e) { SS.del('bb_staff_token'); }
+  })();
 
 })();
 </script>

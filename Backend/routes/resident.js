@@ -82,6 +82,9 @@ module.exports = function registerResidentRoutes(app, prisma) {
     if (!documentType || !purpose) return res.status(400).json({ error: 'documentType and purpose are required.' });
     const rows = await prisma.$queryRaw`SELECT "fee"::FLOAT8 AS fee FROM "DocumentFee" WHERE "documentType" = ${String(documentType)}`;
     if (!rows.length) return res.status(400).json({ error: 'Unknown document type.' });
+    // a double click must not create the same request twice
+    const recent = await prisma.documentRequest.findFirst({ where: { residentId: req.user.residentId, documentType, purpose, requestDate: { gte: new Date(Date.now() - 60000) } } });
+    if (recent) return res.status(409).json({ error: 'You already submitted this request a moment ago.' });
     const fee = rows[0].fee;
     const free = fee === 0; // nothing to settle for a free document
     const created = await prisma.documentRequest.create({
@@ -127,6 +130,9 @@ module.exports = function registerResidentRoutes(app, prisma) {
     if (!incidentType || !respondentName || !description || !dateOfIncident) {
       return res.status(400).json({ error: 'incidentType, respondentName, description and dateOfIncident are required.' });
     }
+    // the same report that is still being handled is not filed twice (double click / resubmit)
+    const dup = await prisma.incidentBlotter.findFirst({ where: { complainantId: req.user.residentId, incidentType, respondentName, description, dateOfIncident: new Date(dateOfIncident), status: { not: 'Resolved' } } });
+    if (dup) return res.status(409).json({ error: `You already filed this report (Case #${dup.caseId}). Check Incident / Complaint Status.` });
     res.status(201).json(await prisma.incidentBlotter.create({
       data: { complainantId: req.user.residentId, incidentType, respondentName, description, dateOfIncident: new Date(dateOfIncident) },
     }));

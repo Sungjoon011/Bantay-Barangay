@@ -117,6 +117,7 @@
 <script src="announce-popup.js"></script>
 <script>
 (function(){'use strict';
+var SS = { get:function(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}, set:function(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}, del:function(k){try{sessionStorage.removeItem(k);}catch(e){}} };
 var tok=null, userProfile=null, activeCashRequestId=null, options={fees:[],pickup:{days:[1,2,3,4,5],open:'08:00',close:'17:00'}}, paidId=(location.search.match(/paid=(\d+)/)||[])[1]||null, $ = function(i){return document.getElementById(i)};
 
 function say(t,ok){var m=$('msg');m.textContent=t;m.style.color=ok?'var(--ok)':'var(--bad)';}
@@ -124,10 +125,14 @@ function api(m,p,b){
   var o={method:m,headers:{'Content-Type':'application/json'}};
   if(tok) o.headers.Authorization='Bearer '+tok;
   if(b) o.body=JSON.stringify(b);
-  return fetch('/api'+p,o).then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d}})});
+  return fetch('/api'+p,o).then(function(r){return r.json().then(function(d){if(r.status===401&&tok){SS.del('bb_res_token');location.reload();}return{ok:r.ok,d:d}})});
 }
+var sending=false;
 function send(p,b,okText,cb){
+  if(sending) return; // ignore repeat clicks while the first request is still running
+  sending=true;
   api('POST',p,b).then(function(r){
+    sending=false;
     say(r.ok?okText:(r.d.error||'Something went wrong'),r.ok);
     if(r.ok && cb) cb(r.d);
     if(r.ok) loadDataAndShow(currentTab);
@@ -164,24 +169,32 @@ $('linkToRegister').onclick = function(e){ e.preventDefault(); showRegister(); }
 $('linkToLogin').onclick = function(e){ e.preventDefault(); showLogin(); };
 
 // AUTHENTICATION
+function enterPortal(){
+  say('',true);
+  $('auth').classList.add('hide');
+  $('app').classList.remove('hide');
+  buildNavigation();
+  api('GET','/me/options').then(function(o){
+    if(o.ok) options=o.d;
+    if(paidId){ showTab('payments'); confirmOnlinePayment(Number(paidId)); }
+    else showTab(SS.get('bb_res_tab') && TABS[SS.get('bb_res_tab')] ? SS.get('bb_res_tab') : 'home');
+  });
+}
 $('lb').onclick=function(){
   api('POST','/resident/login',{email:$('le').value,password:$('lp').value}).then(function(r){
     if(!r.ok){say(r.d.error||'Login failed');return;}
     tok=r.d.token;
-    say('',true);
-    $('auth').classList.add('hide');
-    $('app').classList.remove('hide');
-    buildNavigation();
-    api('GET','/me/options').then(function(o){
-      if(o.ok) options=o.d;
-      if(paidId){ showTab('payments'); confirmOnlinePayment(Number(paidId)); }
-      else showTab('home');
-    });
+    SS.set('bb_res_token',tok);
+    SS.del('bb_res_tab');
+    enterPortal();
   });
 };
 
+var registering=false;
 $('rbtn').onclick=function(){
+  if(registering) return; registering=true;
   api('POST','/resident/register',{email:$('re').value,password:$('rp').value,lastName:$('rl').value,birthDate:$('rb').value}).then(function(r){
+    registering=false;
     say(r.ok?r.d.message:r.d.error,r.ok);
     if(r.ok) showLogin();
   });
@@ -193,6 +206,7 @@ var TABS = {
   payments: 'Payments & Settlement',
   documents: 'Request Documents',
   complaints: 'File Incident / Complaint',
+  reportstatus: 'Incident / Complaint Status',
   appointments: 'Appointment Schedule',
   announcements: 'Announcements',
   profile: 'My Resident Profile'
@@ -215,12 +229,13 @@ function buildNavigation() {
   logoutBtn.textContent = 'Sign Out';
   logoutBtn.className = 'bad';
   logoutBtn.style.marginTop = 'auto';
-  logoutBtn.onclick = function(){ tok=null; location.reload(); };
+  logoutBtn.onclick = function(){ SS.del('bb_res_token'); SS.del('bb_res_tab'); tok=null; location.reload(); };
   nav.appendChild(logoutBtn);
 }
 
 function showTab(k) {
   currentTab = k;
+  SS.set('bb_res_tab', k);
   Array.prototype.forEach.call($('nav').children, function(b){
     if(b.dataset.k) b.className = b.dataset.k === k ? 'on' : '';
   });
@@ -611,8 +626,34 @@ var RENDER_VIEWS = {
         respondentName: respondent || 'Not applicable',
         dateOfIncident: document.getElementById('cd').value,
         description: document.getElementById('cx').value
-      },'Report submitted. Barangay officials will review your filing.');
+      },'Report submitted. You can track it under Incident / Complaint Status.', function(){ showTab('reportstatus'); });
     };
+  },
+
+  // INCIDENT / COMPLAINT STATUS: reports the resident filed, with the status the barangay set (kept apart from Appointment Schedule)
+  reportstatus: function(v, d) {
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML =
+      '<h3>Incident / Complaint Status</h3>' +
+      '<p class="mu" style="font-size:13px; margin-bottom:16px;">Track the reports you filed with the Barangay. <b>Open</b> = received, <b>Ongoing</b> = being handled, <b>Resolved</b> = closed.</p>';
+    var tw = document.createElement('div'); tw.className = 'tw';
+    var tbl = document.createElement('table');
+    tbl.innerHTML = '<tr><th>Case #</th><th>Report</th><th>Against</th><th>Date of Incident</th><th>Status</th></tr>';
+    function cls(s){ return /^Resolved/.test(s) ? 'b-ok' : /^Ongoing/.test(s) ? 'b-info' : /^(Open|Pending)/.test(s) ? 'b-warn' : /^(Dismissed|Rejected)/.test(s) ? 'b-bad' : 'b-info'; }
+    d.complaints.forEach(function(x){
+      var st = x.status || 'Open';
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>#' + esc(x.caseId) + '</td>' +
+        '<td><b>' + esc(x.incidentType) + '</b><div class="mu" style="font-size:12px; margin-top:4px;">' + esc(x.description || '') + '</div></td>' +
+        '<td>' + esc(x.respondentName || '-') + '</td>' +
+        '<td>' + esc(String(x.dateOfIncident || '').slice(0,10)) + '</td>' +
+        '<td><span class="badge ' + cls(st) + '">' + esc(st) + '</span></td>';
+      tbl.appendChild(tr);
+    });
+    if (!d.complaints.length) tbl.innerHTML += '<tr><td colspan="5" class="mu" style="text-align:center;">You have not filed any incident or complaint reports.</td></tr>';
+    tw.appendChild(tbl); card.appendChild(tw); v.appendChild(card);
   },
 
   appointments: function(v, d) {
@@ -668,7 +709,7 @@ var RENDER_VIEWS = {
     
     var card = document.createElement('div');
     card.className = 'card profile-card';
-    card.style.maxWidth = '680px';
+    card.style.cssText = 'width:100%; box-sizing:border-box; min-height:calc(100vh - 190px);';
     card.innerHTML = 
       '<div style="display: flex; gap: 16px; align-items: center; margin-bottom: 20px;">' +
         '<div class="avatar-box" style="width: 64px; height: 64px; font-size: 24px;">' + initials + '</div>' +
@@ -678,19 +719,34 @@ var RENDER_VIEWS = {
         '</div>' +
       '</div>' +
       '<hr style="border: 0; border-top: 1px solid var(--ln); margin: 16px 0;">' +
-      '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; font-size: 13px;">' +
+      '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px 20px; font-size: 15px;">' +
         '<div><b class="mu" style="display: block; font-size: 11px;">RESIDENT RECORD ID</b><span>#' + (prof.residentId || '-') + '</span></div>' +
         '<div><b class="mu" style="display: block; font-size: 11px;">GENDER & CIVIL STATUS</b><span>' + (prof.gender || '-') + ' / ' + (prof.civilStatus || '-') + '</span></div>' +
         '<div><b class="mu" style="display: block; font-size: 11px;">BIRTH DATE</b><span>' + (prof.birthDate ? String(prof.birthDate).slice(0, 10) : '-') + '</span></div>' +
         '<div><b class="mu" style="display: block; font-size: 11px;">MOBILE NUMBER</b><span>' + (prof.contactNumber || 'N/A') + '</span></div>' +
         '<div style="grid-column: 1 / -1;"><b class="mu" style="display: block; font-size: 11px;">REGISTERED HOUSEHOLD ADDRESS</b><span>' + (prof.household ? prof.household.addressDetails + ', ' + prof.household.purokZone : 'Address on File') + '</span></div>' +
+      '</div>' +
+      '<hr style="border: 0; border-top: 1px solid var(--ln); margin: 24px 0 16px;">' +
+      '<b class="mu" style="display: block; font-size: 11px; margin-bottom: 10px;">MY ACTIVITY</b>' +
+      '<div class="stats" style="margin-bottom: 0;">' +
+        '<div class="stat"><b>' + d.documents.length + '</b>Document Requests</div>' +
+        '<div class="stat"><b>' + d.complaints.length + '</b>Incident / Complaint Reports</div>' +
+        '<div class="stat"><b>' + d.appointments.length + '</b>Scheduled Appointments</div>' +
       '</div>';
     
     v.appendChild(card);
   }
 };
 
-if(paidId) say('Thank you! Please sign in to confirm your payment and print your certificate.', true);
+(function(){
+  var t=SS.get('bb_res_token'); if(!t) return;
+  try{
+    var p=JSON.parse(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+    if((p.exp&&p.exp*1000<Date.now())||p.role!=='Resident'){ SS.del('bb_res_token'); return; }
+    tok=t; enterPortal();
+  }catch(e){ SS.del('bb_res_token'); }
+})();
+if(paidId && !tok) say('Thank you! Please sign in to confirm your payment and print your certificate.', true);
 })();
 </script>
 </body>

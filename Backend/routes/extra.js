@@ -270,10 +270,66 @@ module.exports = function registerExtraRoutes(app, prisma) {
     res.status(200).json(row);
   }));
 
-  // ---------------- PAYMENTS (read only: money records are created by the stored procedures) ----------------
+  // ---------------- PAYMENTS ----------------
+  // Rows are read as JSON with the status cast to text, so a status the Prisma enum does not know yet (Cancelled) can never break the list.
+  const PAYMENT_LIST_SQL = `
+    SELECT to_jsonb(p) - 'checkoutSessionId' || jsonb_build_object(
+             'paymentStatus', p."paymentStatus"::text,
+             'documentType', d."documentType",
+             'residentName', NULLIF(TRIM(CONCAT(r."firstName", ' ', r."lastName")), '')) AS j
+    FROM "Payment" p
+    LEFT JOIN "DocumentRequest" d ON d."requestId" = p."requestId"
+    LEFT JOIN "Resident" r ON r."residentId" = d."residentId"`;
+
   app.get('/api/payments', handle(async (req, res) => {
-    const rows = await prisma.payment.findMany({ orderBy: { paymentId: 'desc' }, take: 200 });
-    res.status(200).json(rows);
+    const rows = await prisma.$queryRawUnsafe(`${PAYMENT_LIST_SQL} ORDER BY p."paymentId" DESC LIMIT 200`);
+    res.status(200).json(rows.map((r) => r.j));
+  }));
+
+  // makes sure the database accepts 'Cancelled' as a payment status (adds it once if paymentStatus is an enum)
+  let cancelledReady = false;
+  async function ensureCancelledStatus() {
+    if (cancelledReady) return;
+    const cols = await prisma.$queryRaw`SELECT data_type, udt_name FROM information_schema.columns WHERE table_name = 'Payment' AND column_name = 'paymentStatus'`;
+    if (cols[0] && cols[0].data_type === 'USER-DEFINED') {
+      await prisma.$executeRawUnsafe(`ALTER TYPE "${String(cols[0].udt_name).replace(/"/g, '""')}" ADD VALUE IF NOT EXISTS 'Cancelled'`);
+    }
+    cancelledReady = true;
+  }
+
+  // Collect the fee (Paid), cancel it (Cancelled) or reopen a cancelled one (Unpaid). A Paid payment is final.
+  const PAY_METHODS = ['Cash', 'GCash', 'Maya'];
+  app.patch('/api/payments/:id/status', handle(async (req, res) => {
+    if (req.user.role === 'Official') return res.status(403).json({ error: 'Payments are handled by Admin or Staff.' });
+    const id = int(req.params.id);
+    const status = String(req.body.status || '');
+    if (!['Paid', 'Cancelled', 'Unpaid'].includes(status)) return res.status(400).json({ error: 'status must be Paid, Cancelled or Unpaid.' });
+
+    const cur = (await prisma.$queryRaw`SELECT "requestId", "paymentStatus"::text AS status FROM "Payment" WHERE "paymentId" = ${id}`)[0];
+    if (!cur) return res.status(404).json({ error: 'Payment not found.' });
+    if (cur.status === 'Paid') return res.status(400).json({ error: 'This payment is already Paid and cannot be changed.' });
+    if (cur.status === status) return res.status(400).json({ error: `This payment is already ${status}.` });
+    if (status === 'Paid' && cur.status !== 'Unpaid') return res.status(400).json({ error: 'Reopen a cancelled payment before collecting it.' });
+
+    const actor = prisma.$executeRaw`SELECT set_config('app.account_id', ${String(req.user.accountId)}, true)`;
+    if (status === 'Paid') {
+      const method = PAY_METHODS.includes(req.body.method) ? req.body.method : 'Cash';
+      if (cur.requestId) {
+        // document fee: same stored procedure as "Pay…" on a document, so the receipt and workflow stay consistent
+        const orNumber = String(req.body.orNumber || '').trim();
+        if (!orNumber) return res.status(400).json({ error: 'orNumber is required to collect a fee.' });
+        await prisma.$transaction([actor, prisma.$executeRaw`CALL sp_record_payment(${cur.requestId}::integer, ${orNumber}::text, ${method}::text)`]);
+      } else {
+        await prisma.$transaction([actor, prisma.$executeRawUnsafe(`UPDATE "Payment" SET "paymentStatus" = 'Paid', "paymentMethod" = '${method}', "datePaid" = NOW() WHERE "paymentId" = ${id}`)]);
+      }
+    } else if (status === 'Cancelled') {
+      await ensureCancelledStatus();
+      await prisma.$transaction([actor, prisma.$executeRawUnsafe(`UPDATE "Payment" SET "paymentStatus" = 'Cancelled' WHERE "paymentId" = ${id}`)]);
+    } else {
+      await prisma.$transaction([actor, prisma.$executeRawUnsafe(`UPDATE "Payment" SET "paymentStatus" = 'Unpaid', "datePaid" = NULL WHERE "paymentId" = ${id}`)]);
+    }
+    const row = await prisma.$queryRawUnsafe(`${PAYMENT_LIST_SQL} WHERE p."paymentId" = ${id}`);
+    res.status(200).json(row[0] ? row[0].j : { paymentId: id, paymentStatus: status });
   }));
 
   // ---------------- ANNOUNCEMENTS ----------------
